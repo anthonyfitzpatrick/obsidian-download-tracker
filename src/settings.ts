@@ -10,6 +10,8 @@ export interface DownloadTrackerSettings {
 	exportPath: string;
 	showVersions: boolean;
 	showStars: boolean;
+	showFirstRelease: boolean;
+	showLastUpdated: boolean;
 }
 
 export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
@@ -21,6 +23,8 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	exportPath: 'Download history.md',
 	showVersions: false,
 	showStars: false,
+	showFirstRelease: false,
+	showLastUpdated: false,
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
@@ -121,6 +125,28 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					settings.showStars = value;
 					await this.plugin.saveSettings();
 					if (value) void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show initial release date')
+			.setDesc('Add a column with the date of the first published GitHub release. For themes this makes one more GitHub request per theme on each refresh.')
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showFirstRelease).onChange(async (value) => {
+					settings.showFirstRelease = value;
+					await this.plugin.saveSettings();
+					void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show last updated date')
+			.setDesc("Add a column with the date of the latest published GitHub release. If GitHub can't be reached, plugins use the date in Obsidian's stats file. For themes this makes one more GitHub request per theme on each refresh.")
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showLastUpdated).onChange(async (value) => {
+					settings.showLastUpdated = value;
+					await this.plugin.saveSettings();
+					void this.plugin.refresh(false);
 				}),
 			);
 

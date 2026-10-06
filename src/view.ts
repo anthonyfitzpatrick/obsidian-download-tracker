@@ -7,6 +7,7 @@ import {
 	delta,
 	formatCount,
 	formatDate,
+	formatDay,
 	formatDelta,
 	previousSnapshot,
 	sumKnown,
@@ -17,6 +18,7 @@ import type DownloadTrackerPlugin from './main';
 export const VIEW_TYPE = 'download-tracker-dashboard';
 
 const NUMERIC = new Set(['Downloads', 'Change', 'Stars']);
+const DATES = new Set(['Initial release', 'Last updated']);
 
 export class DashboardView extends ItemView {
 	private refreshButton!: HTMLButtonElement;
@@ -126,10 +128,20 @@ export class DashboardView extends ItemView {
 		parent.createEl('h4', { text: title });
 		const wrap = parent.createDiv({ cls: 'download-tracker-table-wrap' });
 		const table = wrap.createEl('table', { cls: 'download-tracker-table' });
-		const showStars = this.plugin.settings.showStars;
-		const columns = ['Type', 'Name', 'ID or repo', 'Downloads', 'Change', 'Source', ...(showStars ? ['Stars'] : [])];
+		const { showStars, showFirstRelease, showLastUpdated } = this.plugin.settings;
+		const columns = [
+			'Type',
+			'Name',
+			'ID or repo',
+			'Downloads',
+			'Change',
+			'Source',
+			...(showStars ? ['Stars'] : []),
+			...(showFirstRelease ? ['Initial release'] : []),
+			...(showLastUpdated ? ['Last updated'] : []),
+		];
 		const head = table.createEl('thead').createEl('tr');
-		for (const col of columns) head.createEl('th', { text: col, cls: NUMERIC.has(col) ? 'is-number' : '' });
+		for (const col of columns) head.createEl('th', { text: col, cls: this.columnClass(col) });
 
 		const body = table.createEl('tbody');
 		if (rows.length === 0) {
@@ -143,25 +155,30 @@ export class DashboardView extends ItemView {
 				formatCount(row.downloads),
 				formatDelta(delta(row, previous)),
 				SOURCE_LABELS[row.source],
-				formatCount(row.stars),
+				...(showStars ? [formatCount(row.stars)] : []),
+				...(showFirstRelease ? [formatDay(row.firstRelease)] : []),
+				...(showLastUpdated ? [formatDay(row.lastUpdated)] : []),
 			]);
 			if (this.plugin.settings.showVersions) {
 				for (const v of row.versions) {
 					const tr = body.createEl('tr', { cls: 'download-tracker-version' });
-					this.cells(tr, columns, ['', `Version ${v.version}`, '', formatCount(v.downloads), '', '', '']);
+					this.cells(tr, columns, ['', `Version ${v.version}`, '', formatCount(v.downloads)]);
 				}
 			}
 		}
 		const sub = body.createEl('tr', { cls: 'download-tracker-subtotal' });
 		const downloads = sumKnown(rows.map((r) => r.downloads));
 		const stars = sumKnown(rows.map((r) => r.stars));
-		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(downloads), '', '', formatCount(stars)]);
+		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(downloads), '', '', ...(showStars ? [formatCount(stars)] : [])]);
 	}
 
-	// Values beyond the visible columns are dropped, so callers can always pass the stars value.
 	private cells(tr: HTMLElement, columns: string[], values: string[]): void {
 		columns.forEach((col, i) => {
-			tr.createEl('td', { text: values[i] ?? '', cls: NUMERIC.has(col) ? 'is-number' : '' });
+			tr.createEl('td', { text: values[i] ?? '', cls: this.columnClass(col) });
 		});
+	}
+
+	private columnClass(col: string): string {
+		return NUMERIC.has(col) ? 'is-number' : DATES.has(col) ? 'is-date' : '';
 	}
 }

@@ -15,6 +15,8 @@ export interface Row {
 	source: Source;
 	versions: VersionCount[];
 	stars: number | null;
+	firstRelease: number | null;
+	lastUpdated: number | null;
 }
 
 export interface Snapshot {
@@ -26,6 +28,9 @@ export interface Snapshot {
 
 export interface GitHubRelease {
 	tag_name: string;
+	draft?: boolean;
+	prerelease?: boolean;
+	published_at?: string | null;
 	assets?: { name: string; download_count: number }[];
 }
 
@@ -76,6 +81,21 @@ export function sumReleaseFiles(releases: GitHubRelease[]): { total: number; ver
 		versions.push({ version: release.tag_name, downloads });
 	}
 	return { total, versions: sortVersions(versions) };
+}
+
+// GitHub doesn't return releases in date order, drafts have no date, and
+// Obsidian doesn't install pre-releases, so only published releases count.
+export function releaseDates(releases: GitHubRelease[]): { first: number | null; last: number | null } {
+	let first: number | null = null;
+	let last: number | null = null;
+	for (const r of releases) {
+		if (r.draft || r.prerelease || !r.published_at) continue;
+		const time = Date.parse(r.published_at);
+		if (isNaN(time)) continue;
+		if (first === null || time < first) first = time;
+		if (last === null || time > last) last = time;
+	}
+	return { first, last };
 }
 
 // Stats file entries hold "downloads" and "updated" alongside one key per version.
@@ -190,6 +210,10 @@ export function formatCount(n: number | null): string {
 export function formatDelta(n: number | null): string {
 	if (n === null) return 'n/a';
 	return n > 0 ? `+${formatCount(n)}` : formatCount(n);
+}
+
+export function formatDay(time: number | null): string {
+	return time === null ? 'n/a' : formatDate(time).slice(0, 10);
 }
 
 export function formatDate(time: number): string {

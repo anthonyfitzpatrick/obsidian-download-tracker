@@ -88,6 +88,11 @@
 	font-variant-numeric: tabular-nums;
 }
 
+.download-tracker-table .is-date {
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
 .download-tracker-version td {
 	color: var(--text-muted);
 }

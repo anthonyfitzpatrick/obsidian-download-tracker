@@ -17,11 +17,13 @@ import {
 	summaryTable,
 	toCount,
 	toStars,
+	releaseDates,
+	formatDay,
 	total,
 } from '../src/counts';
 
 function row(id: string, downloads: number | null, kind: Row['kind'] = 'plugin'): Row {
-	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null };
+	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null };
 }
 
 describe('parseList', () => {
@@ -69,6 +71,29 @@ describe('sumReleaseFiles', () => {
 			{ version: 'v2.0.0', downloads: 8 },
 			{ version: 'v1.0.0', downloads: 0 },
 		]);
+	});
+});
+
+describe('releaseDates', () => {
+	it('uses the earliest and latest published releases whatever the list order', () => {
+		const dates = releaseDates([
+			{ tag_name: '0.1.5', draft: true, published_at: null },
+			{ tag_name: '0.1.3', published_at: '2026-08-01T10:00:00Z' },
+			{ tag_name: '0.2.0-beta', prerelease: true, published_at: '2026-09-01T10:00:00Z' },
+			{ tag_name: '0.1.4', published_at: '2026-08-13T15:00:00Z' },
+			{ tag_name: '0.1.0', published_at: '2026-07-04T21:00:00Z' },
+		]);
+		expect(dates.first).toBe(Date.parse('2026-07-04T21:00:00Z'));
+		expect(dates.last).toBe(Date.parse('2026-08-13T15:00:00Z'));
+	});
+
+	it('gives null dates when nothing is published', () => {
+		expect(releaseDates([{ tag_name: '1.0.0', draft: true }])).toEqual({ first: null, last: null });
+	});
+
+	it('formats days and missing dates', () => {
+		expect(formatDay(new Date(2026, 6, 4, 23, 0).getTime())).toBe('2026-07-04');
+		expect(formatDay(null)).toBe('n/a');
 	});
 });
 

@@ -3,6 +3,7 @@ import {
 	GitHubRelease,
 	Row,
 	isOwned,
+	releaseDates,
 	sortRows,
 	statsFileVersions,
 	sumManifestDownloads,
@@ -69,14 +70,17 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 	return null;
 }
 
-export function queryKey(usernames: string[], extraRepos: string[], withStars: boolean): string {
-	return ['v2', ...usernames, '|', ...extraRepos, withStars ? '|stars' : ''].map((s) => s.toLowerCase()).join(',');
+export function queryKey(usernames: string[], extraRepos: string[], withStars: boolean, withThemeDates: boolean): string {
+	return ['v3', ...usernames, '|', ...extraRepos, withStars ? '|stars' : '', withThemeDates ? '|theme-dates' : '']
+		.map((s) => s.toLowerCase())
+		.join(',');
 }
 
 export async function loadReport(
 	usernames: string[],
 	extraRepos: string[],
 	withStars: boolean,
+	withThemeDates: boolean,
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
@@ -136,7 +140,10 @@ export async function loadReport(
 		const stats = pluginStats[id];
 		const fileCount = stats ? toCount(stats) : null;
 		currentRepo = p.repo;
-		const live = await fromGitHub(async () => sumManifestDownloads(await githubReleases(p.repo, token)));
+		const releases = await fromGitHub(() => githubReleases(p.repo, token));
+		const live = releases ? sumManifestDownloads(releases) : null;
+		const dates = releases ? releaseDates(releases) : null;
+		const statsUpdated = stats && typeof stats.updated === 'number' ? stats.updated : null;
 		plugins.push({
 			kind: 'plugin',
 			name: p.name,
@@ -146,6 +153,8 @@ export async function loadReport(
 			source: live ? 'live' : fileCount !== null ? 'file' : 'na',
 			versions: live ? live.versions : stats ? statsFileVersions(stats) : [],
 			stars: await stars(p.repo),
+			firstRelease: dates ? dates.first : null,
+			lastUpdated: dates ? dates.last : statsUpdated,
 		});
 	}
 
@@ -155,9 +164,11 @@ export async function loadReport(
 		const themeStats = await firstThemeStats();
 		if (!themeStats) notices.push('Theme download counts could not be loaded, so they show as n/a.');
 		for (const [i, t] of myThemes.entries()) {
-			if (withStars) onProgress(`Checking stars for theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
+			if (withStars || withThemeDates) onProgress(`Checking theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
 			currentRepo = t.repo;
+			const releases = withThemeDates ? await fromGitHub(() => githubReleases(t.repo, token)) : null;
+			const dates = releases ? releaseDates(releases) : null;
 			themes.push({
 				kind: 'theme',
 				name: t.name,
@@ -167,6 +178,8 @@ export async function loadReport(
 				source: count !== null ? 'file' : 'na',
 				versions: [],
 				stars: await stars(t.repo),
+				firstRelease: dates ? dates.first : null,
+				lastUpdated: dates ? dates.last : null,
 			});
 		}
 	}
@@ -175,7 +188,9 @@ export async function loadReport(
 	for (const [i, repo] of missing.entries()) {
 		onProgress(`Checking repository ${i + 1} of ${missing.length}: ${repo}...`);
 		currentRepo = repo;
-		const counted = await fromGitHub(async () => sumReleaseFiles(await githubReleases(repo, token)));
+		const releases = await fromGitHub(() => githubReleases(repo, token));
+		const counted = releases ? sumReleaseFiles(releases) : null;
+		const dates = releases ? releaseDates(releases) : null;
 		repos.push({
 			kind: 'repo',
 			name: repo.slice(repo.indexOf('/') + 1),
@@ -185,12 +200,14 @@ export async function loadReport(
 			source: counted ? 'assets' : 'na',
 			versions: counted ? counted.versions : [],
 			stars: notFound.has(repo) ? null : await stars(repo),
+			firstRelease: dates ? dates.first : null,
+			lastUpdated: dates ? dates.last : null,
 		});
 	}
 	if (notFound.size > 0) notices.push(`Not found on GitHub, or private: ${[...notFound].join(', ')}.`);
 
 	const starsNote =
-		withStars || repos.length > 0 ? ' Stars and other repositories that could not be loaded show as n/a.' : '';
+		withStars || withThemeDates || repos.length > 0 ? ' Anything else that needed GitHub shows as n/a.' : '';
 	if (githubBlocked === 'rate') {
 		notices.push(
 			(token
@@ -206,7 +223,7 @@ export async function loadReport(
 
 	return {
 		fetchedAt: Date.now(),
-		query: queryKey(usernames, extraRepos, withStars),
+		query: queryKey(usernames, extraRepos, withStars, withThemeDates),
 		plugins: sortRows(plugins),
 		themes: sortRows(themes),
 		repos: sortRows(repos),

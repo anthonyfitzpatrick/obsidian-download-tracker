@@ -26,6 +26,8 @@ The tiles at the top show the combined total for plugins and themes, and each gr
 | Change | The difference from your last snapshot, or n/a if there is none to compare with. |
 | Source | Where the count came from: GitHub live, GitHub release files, Obsidian stats file, or not available. |
 | Stars | The repository's GitHub stars. Shown only when **Show stars** is on. |
+| Initial release | Date of the first published GitHub release. Shown only when **Show initial release date** is on. |
+| Last updated | Date of the latest published GitHub release. Shown only when **Show last updated date** is on. |
 
 Counts are reused for the number of minutes set in **Cache duration**, so opening the dashboard again doesn't fetch everything again. Select **Refresh**, or run **Download Tracker: Refresh counts**, to fetch new counts at any time.
 
@@ -34,6 +36,8 @@ Messages above the tiles tell you when something couldn't be loaded. The most co
 Other repositories are counted by every file attached to their GitHub releases, so their numbers mean something different from Obsidian downloads and are not in the plugins and themes total. A repository that doesn't exist or is private shows n/a with a message.
 
 To add a column with each repository's GitHub stars, turn on **Show stars** in settings. This adds one GitHub request per plugin and theme to each refresh, so a token helps if you have many. Stars are not saved in snapshots.
+
+To add release dates, turn on **Show initial release date**, **Show last updated date**, or both. Drafts and pre-releases are not counted. A theme with no GitHub releases shows n/a. For themes, each date setting adds one GitHub request per theme to each refresh.
 
 To see the downloads of each released version, turn on **Show downloads by version** in settings. The versions are listed under each plugin, newest first. Themes have no per-version counts.
 

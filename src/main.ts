@@ -72,7 +72,16 @@ export default class DownloadTrackerPlugin extends Plugin {
 	}
 
 	private query(): string {
-		return queryKey(parseList(this.settings.usernames), parseList(this.settings.extraRepos), this.settings.showStars);
+		return queryKey(
+			parseList(this.settings.usernames),
+			parseList(this.settings.extraRepos),
+			this.settings.showStars,
+			this.themeDates(),
+		);
+	}
+
+	private themeDates(): boolean {
+		return this.settings.showFirstRelease || this.settings.showLastUpdated;
 	}
 
 	async saveSettings(): Promise<void> {
@@ -138,6 +147,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 				parseList(this.settings.usernames),
 				parseList(this.settings.extraRepos),
 				this.settings.showStars,
+				this.themeDates(),
 				token,
 				(message) => {
 					this.progress = message;
