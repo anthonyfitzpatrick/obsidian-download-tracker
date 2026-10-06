@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
-const COFFEE_URL = '';
+const COFFEE_URL = 'https://buymeacoffee.com/wolf359pressab';
 const BOOK_URL = '';
 
 export class DownloadTrackerSettingTab extends PluginSettingTab {
