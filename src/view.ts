@@ -8,6 +8,7 @@ import {
 	formatCount,
 	formatDelta,
 	previousSnapshot,
+	repoUrl,
 	sumKnown,
 	total,
 } from './counts';
@@ -15,7 +16,7 @@ import type DownloadTrackerPlugin from './main';
 
 export const VIEW_TYPE = 'download-tracker-dashboard';
 
-const NUMERIC = new Set(['Downloads', 'Change', 'Stars']);
+const NUMERIC = new Set(['Downloads', 'Change', 'Stars', 'Open issues']);
 const DATES = new Set(['Initial release', 'Last updated']);
 const VISIBILITY_LABELS = { public: 'Public', private: 'Private' };
 
@@ -127,7 +128,7 @@ export class DashboardView extends ItemView {
 		parent.createEl('h4', { text: title });
 		const wrap = parent.createDiv({ cls: 'download-tracker-table-wrap' });
 		const table = wrap.createEl('table', { cls: 'download-tracker-table' });
-		const { showStars, showFirstRelease, showLastUpdated, showAllRepos } = this.plugin.settings;
+		const { showStars, showFirstRelease, showLastUpdated, showAllRepos, showIssues, linkNames } = this.plugin.settings;
 		const columns = [
 			'Type',
 			'Name',
@@ -137,6 +138,7 @@ export class DashboardView extends ItemView {
 			'Source',
 			...(showAllRepos ? ['Visibility'] : []),
 			...(showStars ? ['Stars'] : []),
+			...(showIssues ? ['Open issues'] : []),
 			...(showFirstRelease ? ['Initial release'] : []),
 			...(showLastUpdated ? ['Last updated'] : []),
 		];
@@ -148,7 +150,8 @@ export class DashboardView extends ItemView {
 			body.createEl('tr').createEl('td', { text: empty, attr: { colspan: String(columns.length) } });
 		}
 		for (const row of rows) {
-			this.cells(body.createEl('tr'), columns, [
+			const tr = body.createEl('tr');
+			this.cells(tr, columns, [
 				KIND_LABELS[row.kind],
 				row.name,
 				row.kind === 'plugin' ? row.id : row.repo,
@@ -157,9 +160,15 @@ export class DashboardView extends ItemView {
 				SOURCE_LABELS[row.source],
 				...(showAllRepos ? [row.visibility ? VISIBILITY_LABELS[row.visibility] : 'n/a'] : []),
 				...(showStars ? [formatCount(row.stars)] : []),
+				...(showIssues ? [formatCount(row.openIssues)] : []),
 				...(showFirstRelease ? [this.plugin.displayDate(row.firstRelease)] : []),
 				...(showLastUpdated ? [this.plugin.displayDate(row.lastUpdated)] : []),
 			]);
+			if (linkNames) {
+				const nameCell = tr.children[1];
+				nameCell?.empty();
+				nameCell?.createEl('a', { text: row.name, href: repoUrl(row.repo), attr: { target: '_blank', rel: 'noopener' } });
+			}
 			if (this.plugin.settings.showVersions) {
 				for (const v of row.versions) {
 					const tr = body.createEl('tr', { cls: 'download-tracker-version' });
@@ -179,6 +188,7 @@ export class DashboardView extends ItemView {
 			'',
 			...(showAllRepos ? [''] : []),
 			...(showStars ? [formatCount(stars)] : []),
+			...(showIssues ? [formatCount(sumKnown(rows.map((r) => r.openIssues)))] : []),
 		]);
 	}
 

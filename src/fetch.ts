@@ -2,7 +2,9 @@ import { requestUrl } from 'obsidian';
 import {
 	GitHubRelease,
 	Row,
+	countIssues,
 	isOwned,
+	isRateLimited,
 	releaseDates,
 	sortRows,
 	statsFileVersions,
@@ -35,7 +37,10 @@ interface ListEntry {
 type StatsFile = Record<string, Record<string, unknown> | undefined>;
 
 class HttpError extends Error {
-	constructor(readonly status: number) {
+	constructor(
+		readonly status: number,
+		readonly rateLimited: boolean,
+	) {
 		super(`HTTP ${status}`);
 	}
 }
@@ -47,7 +52,7 @@ async function getJson(url: string, token = ''): Promise<unknown> {
 		if (token) headers.Authorization = `Bearer ${token}`;
 	}
 	const res = await requestUrl({ url, headers, throw: false });
-	if (res.status >= 400) throw new HttpError(res.status);
+	if (res.status >= 400) throw new HttpError(res.status, isRateLimited(res.status, res.headers, res.text));
 	return res.json as unknown;
 }
 
@@ -77,6 +82,7 @@ export interface ReportOptions {
 	withStars: boolean;
 	withThemeDates: boolean;
 	withAllRepos: boolean;
+	withIssues: boolean;
 }
 
 interface RepoInfo {
@@ -84,6 +90,8 @@ interface RepoInfo {
 	private?: boolean;
 	fork?: boolean;
 	stargazers_count?: number;
+	has_issues?: boolean;
+	open_issues_count?: number;
 }
 
 export function queryKey(o: ReportOptions): string {
@@ -95,6 +103,7 @@ export function queryKey(o: ReportOptions): string {
 		o.withStars ? '|stars' : '',
 		o.withThemeDates ? '|theme-dates' : '',
 		o.withAllRepos ? '|all-repos' : '',
+		o.withIssues ? '|issues' : '',
 	]
 		.map((s) => s.toLowerCase())
 		.join(',');
@@ -115,7 +124,7 @@ export async function loadReport(
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
-	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos } = options;
+	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos, withIssues } = options;
 	const notices: string[] = [];
 
 	onProgress('Loading the community lists...');
@@ -144,6 +153,7 @@ export async function loadReport(
 	// After the first refusal, later GitHub calls are skipped: they would be refused too.
 	let githubBlocked: 'rate' | 'token' | null = null;
 	const notFound = new Set<string>();
+	const forbidden = new Set<string>();
 	let currentRepo = '';
 	const fromGitHub = async <T>(call: () => Promise<T>): Promise<T | null> => {
 		if (githubBlocked) return null;
@@ -151,8 +161,9 @@ export async function loadReport(
 			return await call();
 		} catch (e) {
 			if (!(e instanceof HttpError)) throw e;
-			if (e.status === 403 || e.status === 429) githubBlocked = 'rate';
+			if (e.rateLimited) githubBlocked = 'rate';
 			else if (e.status === 401) githubBlocked = 'token';
+			else if (e.status === 403) forbidden.add(currentRepo);
 			else if (e.status === 404) notFound.add(currentRepo);
 			return null;
 		}
@@ -171,6 +182,21 @@ export async function loadReport(
 	};
 	const stars = async (repo: string) => (withStars ? toStars(await info(repo)) : null);
 	const visibility = async (repo: string) => (withAllRepos ? toVisibility(await info(repo)) : null);
+	// GitHub's open_issues_count includes pull requests, so issues are listed and
+	// counted only when that number isn't already zero.
+	const issueAccess = new Set<string>();
+	const openIssues = async (repo: string): Promise<number | null> => {
+		if (!withIssues) return null;
+		const repoData = await info(repo);
+		if (!repoData || repoData.has_issues === false) return null;
+		if (repoData.open_issues_count === 0) return 0;
+		currentRepo = repo;
+		const items = await fromGitHub(() =>
+			githubPages<{ pull_request?: unknown }>(`repos/${repo}/issues?state=open`, token),
+		);
+		if (!items) issueAccess.add(repo);
+		return items ? countIssues(items) : null;
+	};
 
 	const otherRepos = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
 	if (withAllRepos) {
@@ -217,6 +243,7 @@ export async function loadReport(
 			firstRelease: dates ? dates.first : null,
 			lastUpdated: dates ? dates.last : statsUpdated,
 			visibility: await visibility(p.repo),
+			openIssues: await openIssues(p.repo),
 		});
 	}
 
@@ -243,6 +270,7 @@ export async function loadReport(
 				firstRelease: dates ? dates.first : null,
 				lastUpdated: dates ? dates.last : null,
 				visibility: await visibility(t.repo),
+				openIssues: await openIssues(t.repo),
 			});
 		}
 	}
@@ -267,12 +295,21 @@ export async function loadReport(
 			firstRelease: dates ? dates.first : null,
 			lastUpdated: dates ? dates.last : null,
 			visibility: missing ? null : await visibility(repo),
+			openIssues: missing ? null : await openIssues(repo),
 		});
 	}
 	if (notFound.size > 0) notices.push(`Not found on GitHub, or private: ${[...notFound].join(', ')}.`);
+	const noIssueAccess = [...issueAccess].filter((r) => forbidden.has(r));
+	if (noIssueAccess.length > 0) {
+		notices.push(
+			`The GitHub token can't read issues for ${noIssueAccess.join(', ')}, so they show as n/a. Give the token read-only Issues access to count them.`,
+		);
+	}
 
 	const starsNote =
-		withStars || withThemeDates || withAllRepos || repos.length > 0 ? ' Anything else that needed GitHub shows as n/a.' : '';
+		withStars || withThemeDates || withAllRepos || withIssues || repos.length > 0
+			? ' Anything else that needed GitHub shows as n/a.'
+			: '';
 	if (githubBlocked === 'rate') {
 		notices.push(
 			(token

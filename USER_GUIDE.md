@@ -20,12 +20,13 @@ The tiles at the top show the combined total for plugins and themes, and each gr
 | Column | Meaning |
 | --- | --- |
 | Type | Plugin, theme or repository. |
-| Name | The name in Obsidian's community directory. |
+| Name | The name in Obsidian's community directory, or the repository name. With **Link names to repositories** on (the default), it opens the repository on GitHub. |
 | ID or repo | The plugin ID, or the theme's GitHub repository. |
 | Downloads | Installs and updates, not people. |
 | Change | The difference from your last snapshot, or n/a if there is none to compare with. |
 | Source | Where the count came from: GitHub live, GitHub release files, Obsidian stats file, or not available. |
 | Stars | The repository's GitHub stars. Shown only when **Show stars** is on. |
+| Open issues | Open issues, not counting pull requests. Shown only when **Show open issues** is on. |
 | Initial release | Date of the first published GitHub release. Shown only when **Show initial release date** is on. |
 | Last updated | Date of the latest published GitHub release. Shown only when **Show last updated date** is on. |
 
@@ -45,7 +46,7 @@ Private repositories need a token that can read them:
 
 1. On GitHub, open **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
 2. Set **Repository access** to **All repositories**, or select the ones you want.
-3. Under **Repository permissions**, set **Contents** to **Read-only**. Leave everything else at **No access**.
+3. Under **Repository permissions**, set **Contents** to **Read-only**. To count issues in private repositories as well, also set **Issues** to **Read-only**. Leave everything else at **No access**.
 4. Put the token in the **GitHub token** setting.
 
 Dates follow your Obsidian language unless you set **Date format** to a moment.js pattern, for example `DD-MM-YYYY` for 06-10-2026 or `DD-MMM-YYYY` for 06-Oct-2026. The setting shows today's date in the chosen format. Exported history and summaries always use `YYYY-MM-DD HH:mm`, so the history table sorts by date.

@@ -18,12 +18,15 @@ import {
 	toCount,
 	toStars,
 	toVisibility,
+	isRateLimited,
+	countIssues,
+	repoUrl,
 	releaseDates,
 	total,
 } from '../src/counts';
 
 function row(id: string, downloads: number | null, kind: Row['kind'] = 'plugin'): Row {
-	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null };
+	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null, openIssues: null };
 }
 
 describe('parseList', () => {
@@ -125,6 +128,28 @@ describe('toVisibility', () => {
 		expect(toVisibility({ full_name: 'me/a', private: false })).toBe('public');
 		expect(toVisibility({ full_name: 'me/a' })).toBeNull();
 		expect(toVisibility(null)).toBeNull();
+	});
+});
+
+describe('isRateLimited', () => {
+	it('tells a rate limit from a missing permission', () => {
+		expect(isRateLimited(429, {}, '')).toBe(true);
+		expect(isRateLimited(403, { 'X-RateLimit-Remaining': '0' }, '')).toBe(true);
+		expect(isRateLimited(403, {}, '{"message":"You have exceeded a secondary rate limit"}')).toBe(true);
+		expect(isRateLimited(403, { 'x-ratelimit-remaining': '4990' }, '{"message":"Resource not accessible by personal access token"}')).toBe(false);
+		expect(isRateLimited(404, {}, '')).toBe(false);
+	});
+});
+
+describe('countIssues', () => {
+	it('leaves out pull requests', () => {
+		expect(countIssues([{}, { pull_request: { url: 'x' } }, {}])).toBe(2);
+	});
+});
+
+describe('repoUrl', () => {
+	it('builds the GitHub address', () => {
+		expect(repoUrl('me/thing')).toBe('https://github.com/me/thing');
 	});
 });
 

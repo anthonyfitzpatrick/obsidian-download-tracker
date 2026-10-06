@@ -19,6 +19,7 @@ export interface Row {
 	firstRelease: number | null;
 	lastUpdated: number | null;
 	visibility: Visibility | null;
+	openIssues: number | null;
 }
 
 export interface Snapshot {
@@ -127,6 +128,23 @@ export function toStars(repoInfo: unknown): number | null {
 		if (typeof count === 'number') return count;
 	}
 	return null;
+}
+
+// GitHub answers 403 both for rate limits and for missing permissions. Only a
+// rate limit should stop the remaining GitHub calls.
+export function isRateLimited(status: number, headers: Record<string, string>, body: string): boolean {
+	if (status === 429) return true;
+	if (status !== 403) return false;
+	const remaining = Object.entries(headers).find(([k]) => k.toLowerCase() === 'x-ratelimit-remaining')?.[1];
+	return remaining === '0' || /rate limit/i.test(body);
+}
+
+export function countIssues(items: { pull_request?: unknown }[]): number {
+	return items.filter((i) => i.pull_request === undefined).length;
+}
+
+export function repoUrl(repo: string): string {
+	return `https://github.com/${repo}`;
 }
 
 export function toVisibility(repoInfo: unknown): Visibility | null {

@@ -14,6 +14,8 @@ export interface DownloadTrackerSettings {
 	showLastUpdated: boolean;
 	dateFormat: string;
 	showAllRepos: boolean;
+	showIssues: boolean;
+	linkNames: boolean;
 }
 
 export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
@@ -29,6 +31,8 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	showLastUpdated: false,
 	dateFormat: '',
 	showAllRepos: false,
+	showIssues: false,
+	linkNames: true,
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
@@ -164,6 +168,29 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					settings.showAllRepos = value;
 					await this.plugin.saveSettings();
 					void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show open issues')
+			.setDesc(
+				'Add a column with the number of open issues in each repository, not counting pull requests. Repositories with open issues or pull requests add a GitHub request to each refresh. Private repositories need a token that can read their issues.',
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showIssues).onChange(async (value) => {
+					settings.showIssues = value;
+					await this.plugin.saveSettings();
+					void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Link names to repositories')
+			.setDesc("Make each name on the dashboard a link that opens the repository on GitHub.")
+			.addToggle((toggle) =>
+				toggle.setValue(settings.linkNames).onChange(async (value) => {
+					settings.linkNames = value;
+					await this.plugin.saveSettings();
 				}),
 			);
 
