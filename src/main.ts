@@ -10,7 +10,7 @@ import {
 	summaryTable,
 	summaryText,
 } from './counts';
-import { Report, loadReport, queryKey } from './fetch';
+import { Report, ReportOptions, loadReport, queryKey } from './fetch';
 import { DEFAULT_SETTINGS, DownloadTrackerSettingTab, DownloadTrackerSettings } from './settings';
 import { DashboardView, VIEW_TYPE } from './view';
 
@@ -79,17 +79,19 @@ export default class DownloadTrackerPlugin extends Plugin {
 		return parseList(this.settings.usernames).length + parseList(this.settings.extraRepos).length > 0;
 	}
 
-	private query(): string {
-		return queryKey(
-			parseList(this.settings.usernames),
-			parseList(this.settings.extraRepos),
-			this.settings.showStars,
-			this.themeDates(),
-		);
+	private options(): ReportOptions {
+		const s = this.settings;
+		return {
+			usernames: parseList(s.usernames),
+			extraRepos: parseList(s.extraRepos),
+			withStars: s.showStars,
+			withThemeDates: s.showFirstRelease || s.showLastUpdated,
+			withAllRepos: s.showAllRepos,
+		};
 	}
 
-	private themeDates(): boolean {
-		return this.settings.showFirstRelease || this.settings.showLastUpdated;
+	private query(): string {
+		return queryKey(this.options());
 	}
 
 	async saveSettings(): Promise<void> {
@@ -151,17 +153,10 @@ export default class DownloadTrackerPlugin extends Plugin {
 			const token = this.settings.tokenSecret
 				? (this.app.secretStorage.getSecret(this.settings.tokenSecret) ?? '')
 				: '';
-			this.storedReport = await loadReport(
-				parseList(this.settings.usernames),
-				parseList(this.settings.extraRepos),
-				this.settings.showStars,
-				this.themeDates(),
-				token,
-				(message) => {
-					this.progress = message;
-					this.renderViews();
-				},
-			);
+			this.storedReport = await loadReport(this.options(), token, (message) => {
+				this.progress = message;
+				this.renderViews();
+			});
 			await this.saveStoredData();
 		} catch {
 			const report = this.report;

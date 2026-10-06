@@ -10,6 +10,7 @@ An Obsidian plugin that shows the download counts of the community plugins and t
 - Optionally shows the number of GitHub stars on each repository.
 - Optionally shows the date of each project's first and latest published GitHub release.
 - Counts the release downloads of other GitHub repositories you name, in a separate table.
+- Optionally lists every repository you own, public and private, and tags each one with its visibility.
 - Saves snapshots of the counts in the plugin's data and writes the snapshot history to a note as a Markdown table.
 - Copies a plain-text summary to the clipboard, or inserts a summary table into the current note.
 
@@ -34,6 +35,7 @@ Set your GitHub username under **Settings → Download Tracker**, then open the 
 - **Plugins.** The plugin sums the downloads of the `manifest.json` file attached to each GitHub release of the plugin. Obsidian downloads that file once for every install and every update, and builds its own count the same way, so this matches the number in Obsidian's plugin browser but is current. These counts are labelled "GitHub live".
 - **Fallback.** If GitHub refuses a request because of the rate limit or a rejected token, the plugin uses Obsidian's stats file instead and says so on the dashboard. Obsidian updates the stats file on its own schedule, and it can be days behind. These counts are labelled "Obsidian stats file".
 - **Themes.** Theme counts come from Obsidian's theme statistics. If they cannot be loaded, themes show "n/a" and the rest of the refresh still completes.
+- **All repositories and visibility.** With this setting on, every repository owned by your GitHub usernames is listed, except forks, and every row is tagged Public or Private. Plugins and themes in Obsidian's directory are always public. Private repositories appear only when the GitHub token belongs to that account and can read them, for example a fine-grained token with read-only Contents access.
 - **Release dates.** The initial release is the date of the earliest published GitHub release and the last updated date is that of the latest one. Drafts and pre-releases are ignored, because Obsidian doesn't install them. When GitHub can't be reached, a plugin's last updated date comes from Obsidian's stats file. Dates are shown in your local time zone, in the format set under **Date format**, or in your Obsidian language's format if that is empty. Exported history and summaries always use `YYYY-MM-DD HH:mm`.
 - **Other repositories.** An extra repository that isn't in Obsidian's community lists is shown under "Other repositories". Its count is the sum of the downloads of every file attached to its GitHub releases, labelled "GitHub release files". One person downloading three files counts three times, GitHub doesn't count its automatic source-code archives, and installs through package managers aren't included. These counts are kept out of the plugins and themes total.
 
@@ -42,7 +44,7 @@ Limits:
 - A download is an install or an update, not a person. Updating a plugin, or installing it in a second vault, counts again.
 - A plugin or theme appears only once it is in Obsidian's community lists. Projects still in review are not shown.
 - The change column compares with the most recent snapshot saved before the counts were fetched. If the count's source differs from the snapshot's, for example a live count saved and a stats-file count now, the change shows n/a.
-- Without a token, GitHub allows 60 requests an hour from your network. Each plugin and other repository takes at least one request per refresh, showing stars adds one request per repository, and showing either release date adds one request per theme.
+- Without a token, GitHub allows 60 requests an hour from your network. Each plugin and other repository takes at least one request per refresh, showing stars adds one request per repository, showing either release date adds one request per theme, and listing all repositories adds one request per page of 100 repositories plus at least one per repository.
 
 ## Network use
 
@@ -54,9 +56,9 @@ The plugin connects to these hosts only when you open the dashboard, run a comma
 
 ## Privacy
 
-The plugin has no telemetry, analytics or accounts, and sends nothing about you or your vault anywhere. The requests above read public data. Apart from repository names, the only thing they carry is your GitHub token, if you set one, and only to `api.github.com`.
+The plugin has no telemetry, analytics or accounts, and sends nothing about you or your vault anywhere. The requests above read public data, and your private repositories only if your token allows it. Apart from repository names, the only thing they carry is your GitHub token, if you set one, and only to `api.github.com`.
 
-Settings, the last fetched counts and the snapshot history are stored in the plugin's `data.json` in your vault. The GitHub token is stored in Obsidian's secret storage, not in `data.json`. A token with no scopes is enough, because the plugin only reads public data.
+Settings, the last fetched counts and the snapshot history are stored in the plugin's `data.json` in your vault. The GitHub token is stored in Obsidian's secret storage, not in `data.json`. A token with no scopes is enough, because the plugin only reads public data. To include private repositories, use a fine-grained token with read-only Contents access; it can read those repositories' code if it leaks, but it can't change anything.
 
 ## Development
 

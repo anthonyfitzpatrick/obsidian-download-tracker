@@ -17,12 +17,13 @@ import {
 	summaryTable,
 	toCount,
 	toStars,
+	toVisibility,
 	releaseDates,
 	total,
 } from '../src/counts';
 
 function row(id: string, downloads: number | null, kind: Row['kind'] = 'plugin'): Row {
-	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null };
+	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null };
 }
 
 describe('parseList', () => {
@@ -115,6 +116,15 @@ describe('toStars', () => {
 		expect(toStars({ full_name: 'me/a', stargazers_count: 12 })).toBe(12);
 		expect(toStars({ full_name: 'me/a' })).toBeNull();
 		expect(toStars(null)).toBeNull();
+	});
+});
+
+describe('toVisibility', () => {
+	it('reads the private flag from a repository response', () => {
+		expect(toVisibility({ full_name: 'me/a', private: true })).toBe('private');
+		expect(toVisibility({ full_name: 'me/a', private: false })).toBe('public');
+		expect(toVisibility({ full_name: 'me/a' })).toBeNull();
+		expect(toVisibility(null)).toBeNull();
 	});
 });
 

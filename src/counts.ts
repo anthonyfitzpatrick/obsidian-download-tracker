@@ -1,5 +1,6 @@
 export type Kind = 'plugin' | 'theme' | 'repo';
 export type Source = 'live' | 'assets' | 'file' | 'na';
+export type Visibility = 'public' | 'private';
 
 export interface VersionCount {
 	version: string;
@@ -17,6 +18,7 @@ export interface Row {
 	stars: number | null;
 	firstRelease: number | null;
 	lastUpdated: number | null;
+	visibility: Visibility | null;
 }
 
 export interface Snapshot {
@@ -123,6 +125,14 @@ export function toStars(repoInfo: unknown): number | null {
 	if (repoInfo && typeof repoInfo === 'object') {
 		const count = (repoInfo as Record<string, unknown>).stargazers_count;
 		if (typeof count === 'number') return count;
+	}
+	return null;
+}
+
+export function toVisibility(repoInfo: unknown): Visibility | null {
+	if (repoInfo && typeof repoInfo === 'object') {
+		const isPrivate = (repoInfo as Record<string, unknown>).private;
+		if (typeof isPrivate === 'boolean') return isPrivate ? 'private' : 'public';
 	}
 	return null;
 }

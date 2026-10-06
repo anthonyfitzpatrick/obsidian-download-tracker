@@ -13,6 +13,7 @@ export interface DownloadTrackerSettings {
 	showFirstRelease: boolean;
 	showLastUpdated: boolean;
 	dateFormat: string;
+	showAllRepos: boolean;
 }
 
 export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	showFirstRelease: false,
 	showLastUpdated: false,
 	dateFormat: '',
+	showAllRepos: false,
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
@@ -147,6 +149,19 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle.setValue(settings.showLastUpdated).onChange(async (value) => {
 					settings.showLastUpdated = value;
+					await this.plugin.saveSettings();
+					void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show all repositories and visibility')
+			.setDesc(
+				'List every repository owned by your GitHub usernames, not only plugins and themes, and tag each one public or private. Forks are left out. Private repositories appear only if the GitHub token belongs to that account and can read them. Each repository adds at least one GitHub request to each refresh.',
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showAllRepos).onChange(async (value) => {
+					settings.showAllRepos = value;
 					await this.plugin.saveSettings();
 					void this.plugin.refresh(false);
 				}),

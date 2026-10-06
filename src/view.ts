@@ -17,6 +17,7 @@ export const VIEW_TYPE = 'download-tracker-dashboard';
 
 const NUMERIC = new Set(['Downloads', 'Change', 'Stars']);
 const DATES = new Set(['Initial release', 'Last updated']);
+const VISIBILITY_LABELS = { public: 'Public', private: 'Private' };
 
 export class DashboardView extends ItemView {
 	private refreshButton!: HTMLButtonElement;
@@ -126,7 +127,7 @@ export class DashboardView extends ItemView {
 		parent.createEl('h4', { text: title });
 		const wrap = parent.createDiv({ cls: 'download-tracker-table-wrap' });
 		const table = wrap.createEl('table', { cls: 'download-tracker-table' });
-		const { showStars, showFirstRelease, showLastUpdated } = this.plugin.settings;
+		const { showStars, showFirstRelease, showLastUpdated, showAllRepos } = this.plugin.settings;
 		const columns = [
 			'Type',
 			'Name',
@@ -134,6 +135,7 @@ export class DashboardView extends ItemView {
 			'Downloads',
 			'Change',
 			'Source',
+			...(showAllRepos ? ['Visibility'] : []),
 			...(showStars ? ['Stars'] : []),
 			...(showFirstRelease ? ['Initial release'] : []),
 			...(showLastUpdated ? ['Last updated'] : []),
@@ -153,6 +155,7 @@ export class DashboardView extends ItemView {
 				formatCount(row.downloads),
 				formatDelta(delta(row, previous)),
 				SOURCE_LABELS[row.source],
+				...(showAllRepos ? [row.visibility ? VISIBILITY_LABELS[row.visibility] : 'n/a'] : []),
 				...(showStars ? [formatCount(row.stars)] : []),
 				...(showFirstRelease ? [this.plugin.displayDate(row.firstRelease)] : []),
 				...(showLastUpdated ? [this.plugin.displayDate(row.lastUpdated)] : []),
@@ -167,12 +170,27 @@ export class DashboardView extends ItemView {
 		const sub = body.createEl('tr', { cls: 'download-tracker-subtotal' });
 		const downloads = sumKnown(rows.map((r) => r.downloads));
 		const stars = sumKnown(rows.map((r) => r.stars));
-		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(downloads), '', '', ...(showStars ? [formatCount(stars)] : [])]);
+		this.cells(sub, columns, [
+			'',
+			'Subtotal',
+			'',
+			formatCount(downloads),
+			'',
+			'',
+			...(showAllRepos ? [''] : []),
+			...(showStars ? [formatCount(stars)] : []),
+		]);
 	}
 
 	private cells(tr: HTMLElement, columns: string[], values: string[]): void {
 		columns.forEach((col, i) => {
-			tr.createEl('td', { text: values[i] ?? '', cls: this.columnClass(col) });
+			const value = values[i] ?? '';
+			const td = tr.createEl('td', { cls: this.columnClass(col) });
+			if (col === 'Visibility' && (value === 'Public' || value === 'Private')) {
+				td.createSpan({ text: value, cls: `download-tracker-tag is-${value.toLowerCase()}` });
+			} else {
+				td.setText(value);
+			}
 		});
 	}
 

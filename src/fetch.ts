@@ -10,6 +10,7 @@ import {
 	sumReleaseFiles,
 	toCount,
 	toStars,
+	toVisibility,
 } from './counts';
 
 const RAW = 'https://raw.githubusercontent.com/obsidianmd/obsidian-releases/HEAD/';
@@ -70,20 +71,51 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 	return null;
 }
 
-export function queryKey(usernames: string[], extraRepos: string[], withStars: boolean, withThemeDates: boolean): string {
-	return ['v3', ...usernames, '|', ...extraRepos, withStars ? '|stars' : '', withThemeDates ? '|theme-dates' : '']
+export interface ReportOptions {
+	usernames: string[];
+	extraRepos: string[];
+	withStars: boolean;
+	withThemeDates: boolean;
+	withAllRepos: boolean;
+}
+
+interface RepoInfo {
+	full_name: string;
+	private?: boolean;
+	fork?: boolean;
+	stargazers_count?: number;
+}
+
+export function queryKey(o: ReportOptions): string {
+	return [
+		'v4',
+		...o.usernames,
+		'|',
+		...o.extraRepos,
+		o.withStars ? '|stars' : '',
+		o.withThemeDates ? '|theme-dates' : '',
+		o.withAllRepos ? '|all-repos' : '',
+	]
 		.map((s) => s.toLowerCase())
 		.join(',');
 }
 
+async function githubPages<T>(path: string, token: string): Promise<T[]> {
+	const items: T[] = [];
+	const joiner = path.includes('?') ? '&' : '?';
+	for (let page = 1; ; page++) {
+		const batch = (await getJson(`${GITHUB_API}${path}${joiner}per_page=100&page=${page}`, token)) as T[];
+		items.push(...batch);
+		if (batch.length < 100) return items;
+	}
+}
+
 export async function loadReport(
-	usernames: string[],
-	extraRepos: string[],
-	withStars: boolean,
-	withThemeDates: boolean,
+	options: ReportOptions,
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
+	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos } = options;
 	const notices: string[] = [];
 
 	onProgress('Loading the community lists...');
@@ -107,9 +139,7 @@ export async function loadReport(
 
 	const myPlugins = pluginList.filter((p) => isOwned(p.repo, usernames, extraRepos));
 	const myThemes = themeList.filter((t) => isOwned(t.repo, usernames, extraRepos));
-
 	const listed = new Set([...myPlugins, ...myThemes].map((e) => e.repo.toLowerCase()));
-	const missing = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
 
 	// After the first refusal, later GitHub calls are skipped: they would be refused too.
 	let githubBlocked: 'rate' | 'token' | null = null;
@@ -127,11 +157,42 @@ export async function loadReport(
 			return null;
 		}
 	};
-	const stars = async (repo: string): Promise<number | null> => {
-		if (!withStars) return null;
-		const info = await fromGitHub(() => getJson(`${GITHUB_API}repos/${repo}`, token));
-		return toStars(info);
+
+	// Repository listings already carry stars and visibility, so they fill this
+	// cache and save a request per repository.
+	const repoInfo = new Map<string, RepoInfo | null>();
+	const info = async (repo: string): Promise<RepoInfo | null> => {
+		const key = repo.toLowerCase();
+		if (!repoInfo.has(key)) {
+			currentRepo = repo;
+			repoInfo.set(key, (await fromGitHub(() => getJson(`${GITHUB_API}repos/${repo}`, token))) as RepoInfo | null);
+		}
+		return repoInfo.get(key) ?? null;
 	};
+	const stars = async (repo: string) => (withStars ? toStars(await info(repo)) : null);
+	const visibility = async (repo: string) => (withAllRepos ? toVisibility(await info(repo)) : null);
+
+	const otherRepos = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
+	if (withAllRepos) {
+		onProgress('Listing your repositories...');
+		const me = token ? ((await fromGitHub(() => getJson(`${GITHUB_API}user`, token))) as { login?: string } | null) : null;
+		const login = me?.login?.toLowerCase() ?? '';
+		for (const user of usernames) {
+			// Only the token owner's own listing includes private repositories.
+			const path = user.toLowerCase() === login ? 'user/repos?affiliation=owner' : `users/${user}/repos?type=owner`;
+			const owned = (await fromGitHub(() => githubPages<RepoInfo>(path, token))) ?? [];
+			for (const r of owned) {
+				repoInfo.set(r.full_name.toLowerCase(), r);
+				const known = listed.has(r.full_name.toLowerCase()) || otherRepos.some((x) => x.toLowerCase() === r.full_name.toLowerCase());
+				if (!r.fork && !known) otherRepos.push(r.full_name);
+			}
+		}
+		if (!usernames.some((u) => u.toLowerCase() === login)) {
+			notices.push(
+				'Private repositories are listed only when the GitHub token belongs to one of these accounts and can read them.',
+			);
+		}
+	}
 
 	const plugins: Row[] = [];
 	for (const [i, p] of myPlugins.entries()) {
@@ -155,6 +216,7 @@ export async function loadReport(
 			stars: await stars(p.repo),
 			firstRelease: dates ? dates.first : null,
 			lastUpdated: dates ? dates.last : statsUpdated,
+			visibility: await visibility(p.repo),
 		});
 	}
 
@@ -164,7 +226,7 @@ export async function loadReport(
 		const themeStats = await firstThemeStats();
 		if (!themeStats) notices.push('Theme download counts could not be loaded, so they show as n/a.');
 		for (const [i, t] of myThemes.entries()) {
-			if (withStars || withThemeDates) onProgress(`Checking theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
+			onProgress(`Checking theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
 			currentRepo = t.repo;
 			const releases = withThemeDates ? await fromGitHub(() => githubReleases(t.repo, token)) : null;
@@ -180,17 +242,19 @@ export async function loadReport(
 				stars: await stars(t.repo),
 				firstRelease: dates ? dates.first : null,
 				lastUpdated: dates ? dates.last : null,
+				visibility: await visibility(t.repo),
 			});
 		}
 	}
 
 	const repos: Row[] = [];
-	for (const [i, repo] of missing.entries()) {
-		onProgress(`Checking repository ${i + 1} of ${missing.length}: ${repo}...`);
+	for (const [i, repo] of otherRepos.entries()) {
+		onProgress(`Checking repository ${i + 1} of ${otherRepos.length}: ${repo}...`);
 		currentRepo = repo;
 		const releases = await fromGitHub(() => githubReleases(repo, token));
 		const counted = releases ? sumReleaseFiles(releases) : null;
 		const dates = releases ? releaseDates(releases) : null;
+		const missing = notFound.has(repo);
 		repos.push({
 			kind: 'repo',
 			name: repo.slice(repo.indexOf('/') + 1),
@@ -199,15 +263,16 @@ export async function loadReport(
 			downloads: counted ? counted.total : null,
 			source: counted ? 'assets' : 'na',
 			versions: counted ? counted.versions : [],
-			stars: notFound.has(repo) ? null : await stars(repo),
+			stars: missing ? null : await stars(repo),
 			firstRelease: dates ? dates.first : null,
 			lastUpdated: dates ? dates.last : null,
+			visibility: missing ? null : await visibility(repo),
 		});
 	}
 	if (notFound.size > 0) notices.push(`Not found on GitHub, or private: ${[...notFound].join(', ')}.`);
 
 	const starsNote =
-		withStars || withThemeDates || repos.length > 0 ? ' Anything else that needed GitHub shows as n/a.' : '';
+		withStars || withThemeDates || withAllRepos || repos.length > 0 ? ' Anything else that needed GitHub shows as n/a.' : '';
 	if (githubBlocked === 'rate') {
 		notices.push(
 			(token
@@ -223,7 +288,7 @@ export async function loadReport(
 
 	return {
 		fetchedAt: Date.now(),
-		query: queryKey(usernames, extraRepos, withStars, withThemeDates),
+		query: queryKey(options),
 		plugins: sortRows(plugins),
 		themes: sortRows(themes),
 		repos: sortRows(repos),
