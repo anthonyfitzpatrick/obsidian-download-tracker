@@ -14,8 +14,7 @@ import type DownloadTrackerPlugin from './main';
 
 export const VIEW_TYPE = 'download-tracker-dashboard';
 
-const COLUMNS = ['Type', 'Name', 'ID or repo', 'Downloads', 'Change', 'Source'];
-const NUMERIC = new Set(['Downloads', 'Change']);
+const NUMERIC = new Set(['Downloads', 'Change', 'Stars']);
 
 export class DashboardView extends ItemView {
 	private refreshButton!: HTMLButtonElement;
@@ -117,36 +116,41 @@ export class DashboardView extends ItemView {
 		parent.createEl('h4', { text: title });
 		const wrap = parent.createDiv({ cls: 'download-tracker-table-wrap' });
 		const table = wrap.createEl('table', { cls: 'download-tracker-table' });
+		const showStars = this.plugin.settings.showStars;
+		const columns = ['Type', 'Name', 'ID or repo', 'Downloads', 'Change', 'Source', ...(showStars ? ['Stars'] : [])];
 		const head = table.createEl('thead').createEl('tr');
-		for (const col of COLUMNS) head.createEl('th', { text: col, cls: NUMERIC.has(col) ? 'is-number' : '' });
+		for (const col of columns) head.createEl('th', { text: col, cls: NUMERIC.has(col) ? 'is-number' : '' });
 
 		const body = table.createEl('tbody');
 		if (rows.length === 0) {
-			body.createEl('tr').createEl('td', { text: empty, attr: { colspan: String(COLUMNS.length) } });
+			body.createEl('tr').createEl('td', { text: empty, attr: { colspan: String(columns.length) } });
 		}
 		for (const row of rows) {
-			this.cells(body.createEl('tr'), [
+			this.cells(body.createEl('tr'), columns, [
 				row.kind === 'plugin' ? 'Plugin' : 'Theme',
 				row.name,
 				row.kind === 'plugin' ? row.id : row.repo,
 				formatCount(row.downloads),
 				formatDelta(delta(row, previous)),
 				SOURCE_LABELS[row.source],
+				formatCount(row.stars),
 			]);
 			if (this.plugin.settings.showVersions) {
 				for (const v of row.versions) {
 					const tr = body.createEl('tr', { cls: 'download-tracker-version' });
-					this.cells(tr, ['', `Version ${v.version}`, '', formatCount(v.downloads), '', '']);
+					this.cells(tr, columns, ['', `Version ${v.version}`, '', formatCount(v.downloads), '', '', '']);
 				}
 			}
 		}
 		const sub = body.createEl('tr', { cls: 'download-tracker-subtotal' });
-		this.cells(sub, ['', 'Subtotal', '', formatCount(total(rows)), '', '']);
+		const starTotal = rows.reduce((sum, r) => sum + (r.stars ?? 0), 0);
+		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(total(rows)), '', '', formatCount(starTotal)]);
 	}
 
-	private cells(tr: HTMLElement, values: string[]): void {
-		values.forEach((value, i) => {
-			tr.createEl('td', { text: value, cls: NUMERIC.has(COLUMNS[i] ?? '') ? 'is-number' : '' });
+	// Values beyond the visible columns are dropped, so callers can always pass the stars value.
+	private cells(tr: HTMLElement, columns: string[], values: string[]): void {
+		columns.forEach((col, i) => {
+			tr.createEl('td', { text: values[i] ?? '', cls: NUMERIC.has(col) ? 'is-number' : '' });
 		});
 	}
 }

@@ -7,6 +7,7 @@ import {
 	statsFileVersions,
 	sumManifestDownloads,
 	toCount,
+	toStars,
 } from './counts';
 
 const RAW = 'https://raw.githubusercontent.com/obsidianmd/obsidian-releases/HEAD/';
@@ -66,13 +67,14 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 	return null;
 }
 
-export function queryKey(usernames: string[], extraRepos: string[]): string {
-	return [...usernames, '|', ...extraRepos].map((s) => s.toLowerCase()).join(',');
+export function queryKey(usernames: string[], extraRepos: string[], withStars: boolean): string {
+	return [...usernames, '|', ...extraRepos, withStars ? '|stars' : ''].map((s) => s.toLowerCase()).join(',');
 }
 
 export async function loadReport(
 	usernames: string[],
 	extraRepos: string[],
+	withStars: boolean,
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
@@ -104,23 +106,32 @@ export async function loadReport(
 	const missing = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
 	if (missing.length > 0) notices.push(`Not found in the community lists: ${missing.join(', ')}.`);
 
+	// After the first refusal, later GitHub calls are skipped: they would be refused too.
 	let githubBlocked: 'rate' | 'token' | null = null;
+	const fromGitHub = async <T>(call: () => Promise<T>): Promise<T | null> => {
+		if (githubBlocked) return null;
+		try {
+			return await call();
+		} catch (e) {
+			if (!(e instanceof HttpError)) throw e;
+			if (e.status === 403 || e.status === 429) githubBlocked = 'rate';
+			else if (e.status === 401) githubBlocked = 'token';
+			return null;
+		}
+	};
+	const stars = async (repo: string): Promise<number | null> => {
+		if (!withStars) return null;
+		const info = await fromGitHub(() => getJson(`${GITHUB_API}repos/${repo}`, token));
+		return toStars(info);
+	};
+
 	const plugins: Row[] = [];
 	for (const [i, p] of myPlugins.entries()) {
 		onProgress(`Checking plugin ${i + 1} of ${myPlugins.length}: ${p.name}...`);
 		const id = p.id ?? p.repo;
 		const stats = pluginStats[id];
 		const fileCount = stats ? toCount(stats) : null;
-		let live: ReturnType<typeof sumManifestDownloads> | null = null;
-		if (!githubBlocked) {
-			try {
-				live = await githubLive(p.repo, token);
-			} catch (e) {
-				if (e instanceof HttpError && (e.status === 403 || e.status === 429)) githubBlocked = 'rate';
-				else if (e instanceof HttpError && e.status === 401) githubBlocked = 'token';
-				else if (!(e instanceof HttpError)) throw e;
-			}
-		}
+		const live = await fromGitHub(() => githubLive(p.repo, token));
 		plugins.push({
 			kind: 'plugin',
 			name: p.name,
@@ -129,17 +140,8 @@ export async function loadReport(
 			downloads: live ? live.total : fileCount,
 			source: live ? 'live' : fileCount !== null ? 'file' : 'na',
 			versions: live ? live.versions : stats ? statsFileVersions(stats) : [],
+			stars: await stars(p.repo),
 		});
-	}
-
-	if (githubBlocked === 'rate') {
-		notices.push(
-			token
-				? "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Try again later."
-				: "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.",
-		);
-	} else if (githubBlocked === 'token') {
-		notices.push("GitHub rejected the token, so plugins show Obsidian's stats file instead. Check the token in settings.");
 	}
 
 	let themes: Row[] = [];
@@ -147,9 +149,10 @@ export async function loadReport(
 		onProgress('Checking theme download counts...');
 		const themeStats = await firstThemeStats();
 		if (!themeStats) notices.push('Theme download counts could not be loaded, so they show as n/a.');
-		themes = myThemes.map((t) => {
+		for (const [i, t] of myThemes.entries()) {
+			if (withStars) onProgress(`Checking stars for theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
-			return {
+			themes.push({
 				kind: 'theme',
 				name: t.name,
 				id: t.repo,
@@ -157,13 +160,28 @@ export async function loadReport(
 				downloads: count,
 				source: count !== null ? 'file' : 'na',
 				versions: [],
-			};
-		});
+				stars: await stars(t.repo),
+			});
+		}
+	}
+
+	const starsNote = withStars ? ' Stars that could not be loaded show as n/a.' : '';
+	if (githubBlocked === 'rate') {
+		notices.push(
+			(token
+				? "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Try again later."
+				: "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.") +
+				starsNote,
+		);
+	} else if (githubBlocked === 'token') {
+		notices.push(
+			"GitHub rejected the token, so plugins show Obsidian's stats file instead. Check the token in settings." + starsNote,
+		);
 	}
 
 	return {
 		fetchedAt: Date.now(),
-		query: queryKey(usernames, extraRepos),
+		query: queryKey(usernames, extraRepos, withStars),
 		plugins: sortRows(plugins),
 		themes: sortRows(themes),
 		notices,

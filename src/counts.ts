@@ -14,6 +14,7 @@ export interface Row {
 	downloads: number | null;
 	source: Source;
 	versions: VersionCount[];
+	stars: number | null;
 }
 
 export interface Snapshot {
@@ -79,6 +80,14 @@ export function toCount(value: unknown): number | null {
 		for (const key of ['downloads', 'download', 'total']) {
 			if (typeof v[key] === 'number') return Math.round(v[key]);
 		}
+	}
+	return null;
+}
+
+export function toStars(repoInfo: unknown): number | null {
+	if (repoInfo && typeof repoInfo === 'object') {
+		const count = (repoInfo as Record<string, unknown>).stargazers_count;
+		if (typeof count === 'number') return count;
 	}
 	return null;
 }

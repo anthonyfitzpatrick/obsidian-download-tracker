@@ -25,10 +25,13 @@ The tiles at the top show the total downloads and the totals for plugins and the
 | Downloads | Installs and updates, not people. |
 | Change | The difference from your last snapshot, or n/a if there is none to compare with. |
 | Source | Where the count came from: GitHub live, Obsidian stats file, or not available. |
+| Stars | The repository's GitHub stars. Shown only when **Show stars** is on. |
 
 Counts are reused for the number of minutes set in **Cache duration**, so opening the dashboard again doesn't fetch everything again. Select **Refresh**, or run **Download Tracker: Refresh counts**, to fetch new counts at any time.
 
 Messages above the tiles tell you when something couldn't be loaded. The most common one is GitHub's rate limit. When that happens, the affected plugins show Obsidian's stats file count, which may be a few days old.
+
+To add a column with each repository's GitHub stars, turn on **Show stars** in settings. This adds one GitHub request per plugin and theme to each refresh, so a token helps if you have many. Stars are not saved in snapshots.
 
 To see the downloads of each released version, turn on **Show downloads by version** in settings. The versions are listed under each plugin, newest first. Themes have no per-version counts.
 

@@ -9,6 +9,7 @@ export interface DownloadTrackerSettings {
 	cacheMinutes: number;
 	exportPath: string;
 	showVersions: boolean;
+	showStars: boolean;
 }
 
 export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	cacheMinutes: 30,
 	exportPath: 'Download history.md',
 	showVersions: false,
+	showStars: false,
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
@@ -108,6 +110,17 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					settings.showVersions = value;
 					await this.plugin.saveSettings();
 					this.plugin.renderViews();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show stars')
+			.setDesc('Add a column with the GitHub stars of each repository. This makes one more GitHub request per plugin and theme on each refresh.')
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showStars).onChange(async (value) => {
+					settings.showStars = value;
+					await this.plugin.saveSettings();
+					if (value) void this.plugin.refresh(false);
 				}),
 			);
 

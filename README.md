@@ -7,10 +7,11 @@ An Obsidian plugin that shows the download counts of the community plugins and t
 - Lists every plugin and theme in Obsidian's community directory whose repository belongs to one of your GitHub usernames, plus any extra repositories you name.
 - Shows each item's download count, the change since your last snapshot and where the count came from, with subtotals and a total.
 - Optionally lists the downloads of each released version of a plugin.
+- Optionally shows the number of GitHub stars on each repository.
 - Saves snapshots of the counts in the plugin's data and writes the snapshot history to a note as a Markdown table.
 - Copies a plain-text summary to the clipboard, or inserts a summary table into the current note.
 
-It does not show stars, issues or anything else about your repositories, and it does not chart the history.
+It does not show issues, pull requests or anything else about your repositories, and it does not chart the history. Stars are shown as they are now; snapshots record downloads only.
 
 ## Install
 
@@ -37,14 +38,14 @@ Limits:
 - A download is an install or an update, not a person. Updating a plugin, or installing it in a second vault, counts again.
 - A plugin or theme appears only once it is in Obsidian's community lists. Projects still in review are not shown.
 - The change column compares with the most recent snapshot saved before the counts were fetched. If one snapshot used live counts and the next used the stats file, a change can look smaller than it is, or negative.
-- Without a token, GitHub allows 60 requests an hour from your network. Each plugin takes at least one request per refresh.
+- Without a token, GitHub allows 60 requests an hour from your network. Each plugin takes at least one request per refresh, and showing stars adds one request per plugin and theme.
 
 ## Network use
 
 The plugin connects to these hosts only when you open the dashboard, run a command that needs counts, or turn on refresh at startup:
 
 - `raw.githubusercontent.com`: Obsidian's community plugin list, theme list and plugin stats file, from the `obsidianmd/obsidian-releases` repository.
-- `api.github.com`: the release list of each of your plugins, to read live download counts. If you set a token, it is sent only to this host.
+- `api.github.com`: the release list of each of your plugins, to read live download counts, and, if you turn on stars, each plugin and theme repository's star count. If you set a token, it is sent only to this host.
 - `releases.obsidian.md`: Obsidian's theme download statistics.
 
 ## Privacy

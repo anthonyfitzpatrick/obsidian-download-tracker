@@ -13,11 +13,12 @@ import {
 	sumManifestDownloads,
 	summaryTable,
 	toCount,
+	toStars,
 	total,
 } from '../src/counts';
 
 function row(id: string, downloads: number | null, kind: Row['kind'] = 'plugin'): Row {
-	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [] };
+	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null };
 }
 
 describe('parseList', () => {
@@ -70,6 +71,14 @@ describe('toCount', () => {
 		expect(toCount({ id: 'Theme', download: 3 })).toBe(3);
 		expect(toCount({ other: 1 })).toBeNull();
 		expect(toCount(undefined)).toBeNull();
+	});
+});
+
+describe('toStars', () => {
+	it('reads stargazers_count from a repository response', () => {
+		expect(toStars({ full_name: 'me/a', stargazers_count: 12 })).toBe(12);
+		expect(toStars({ full_name: 'me/a' })).toBeNull();
+		expect(toStars(null)).toBeNull();
 	});
 });
 

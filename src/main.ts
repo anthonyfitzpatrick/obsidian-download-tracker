@@ -30,6 +30,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 	error = '';
 	private storedReport: Report | null = null;
 	private pending: Promise<void> | null = null;
+	private pendingQuery = '';
 
 	async onload(): Promise<void> {
 		const data = (await this.loadData()) as Partial<StoredData> | null;
@@ -71,7 +72,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 	}
 
 	private query(): string {
-		return queryKey(parseList(this.settings.usernames), parseList(this.settings.extraRepos));
+		return queryKey(parseList(this.settings.usernames), parseList(this.settings.extraRepos), this.settings.showStars);
 	}
 
 	async saveSettings(): Promise<void> {
@@ -105,7 +106,10 @@ export default class DownloadTrackerPlugin extends Plugin {
 	}
 
 	refresh(force: boolean): Promise<void> {
-		if (this.pending) return this.pending;
+		if (this.pending) {
+			if (this.pendingQuery === this.query()) return this.pending;
+			return this.pending.then(() => this.refresh(force));
+		}
 		if (!this.hasAccounts()) {
 			this.renderViews();
 			return Promise.resolve();
@@ -114,6 +118,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		const maxAge = this.settings.cacheMinutes * 60_000;
 		if (!force && report && Date.now() - report.fetchedAt < maxAge) return Promise.resolve();
 
+		this.pendingQuery = this.query();
 		this.pending = this.fetchReport().finally(() => {
 			this.pending = null;
 		});
@@ -132,6 +137,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 			this.storedReport = await loadReport(
 				parseList(this.settings.usernames),
 				parseList(this.settings.extraRepos),
+				this.settings.showStars,
 				token,
 				(message) => {
 					this.progress = message;
