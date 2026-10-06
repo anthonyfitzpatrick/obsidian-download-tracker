@@ -1,0 +1,109 @@
+.download-tracker-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-2);
+}
+
+.download-tracker-status {
+	min-height: 1.5em;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.download-tracker-status.mod-warning {
+	color: var(--text-warning);
+}
+
+.download-tracker-notice {
+	margin: var(--size-4-2) 0;
+	padding: var(--size-4-2) var(--size-4-3);
+	border-left: 3px solid var(--text-warning);
+	background-color: var(--background-secondary);
+	font-size: var(--font-ui-small);
+}
+
+.download-tracker-empty,
+.download-tracker-meta {
+	color: var(--text-muted);
+}
+
+.download-tracker-meta {
+	font-size: var(--font-ui-small);
+}
+
+.download-tracker-tiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+	gap: var(--size-4-2);
+	margin: var(--size-4-3) 0;
+}
+
+.download-tracker-tile {
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-secondary);
+}
+
+.download-tracker-tile-value {
+	font-size: var(--font-ui-large);
+	font-weight: var(--font-bold);
+	font-variant-numeric: tabular-nums;
+}
+
+.download-tracker-tile-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.download-tracker-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.download-tracker-table {
+	width: 100%;
+	min-width: 40rem;
+	border-collapse: collapse;
+	font-size: var(--font-ui-small);
+}
+
+.download-tracker-table th,
+.download-tracker-table td {
+	padding: var(--size-4-1) var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+	text-align: left;
+}
+
+.download-tracker-table th {
+	background-color: var(--background-secondary);
+	color: var(--text-muted);
+	font-weight: var(--font-semibold);
+}
+
+.download-tracker-table .is-number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.download-tracker-version td {
+	color: var(--text-muted);
+}
+
+.download-tracker-version td:nth-child(2) {
+	padding-left: var(--size-4-6);
+}
+
+.download-tracker-subtotal td {
+	background-color: var(--background-secondary);
+	font-weight: var(--font-semibold);
+	border-bottom: none;
+}
+
+.download-tracker-credit {
+	margin-top: var(--size-4-6);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
