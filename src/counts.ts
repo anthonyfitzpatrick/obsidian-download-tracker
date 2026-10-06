@@ -212,10 +212,6 @@ export function formatDelta(n: number | null): string {
 	return n > 0 ? `+${formatCount(n)}` : formatCount(n);
 }
 
-export function formatDay(time: number | null): string {
-	return time === null ? 'n/a' : formatDate(time).slice(0, 10);
-}
-
 export function formatDate(time: number): string {
 	const d = new Date(time);
 	const pad = (n: number) => String(n).padStart(2, '0');

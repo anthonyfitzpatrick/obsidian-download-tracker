@@ -6,8 +6,6 @@ import {
 	Snapshot,
 	delta,
 	formatCount,
-	formatDate,
-	formatDay,
 	formatDelta,
 	previousSnapshot,
 	sumKnown,
@@ -111,9 +109,9 @@ export class DashboardView extends ItemView {
 
 		const meta = root.createEl('p', { cls: 'download-tracker-meta' });
 		meta.setText(
-			`Counts fetched ${formatDate(report.fetchedAt)}. ` +
+			`Counts fetched ${this.plugin.displayDate(report.fetchedAt, true)}. ` +
 				(previous
-					? `Change compares with the snapshot from ${formatDate(previous.fetchedAt)}.`
+					? `Change compares with the snapshot from ${this.plugin.displayDate(previous.fetchedAt, true)}.`
 					: 'Change shows n/a until a snapshot of earlier counts is saved.'),
 		);
 	}
@@ -156,8 +154,8 @@ export class DashboardView extends ItemView {
 				formatDelta(delta(row, previous)),
 				SOURCE_LABELS[row.source],
 				...(showStars ? [formatCount(row.stars)] : []),
-				...(showFirstRelease ? [formatDay(row.firstRelease)] : []),
-				...(showLastUpdated ? [formatDay(row.lastUpdated)] : []),
+				...(showFirstRelease ? [this.plugin.displayDate(row.firstRelease)] : []),
+				...(showLastUpdated ? [this.plugin.displayDate(row.lastUpdated)] : []),
 			]);
 			if (this.plugin.settings.showVersions) {
 				for (const v of row.versions) {

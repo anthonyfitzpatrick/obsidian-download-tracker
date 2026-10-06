@@ -18,7 +18,6 @@ import {
 	toCount,
 	toStars,
 	releaseDates,
-	formatDay,
 	total,
 } from '../src/counts';
 
@@ -89,11 +88,6 @@ describe('releaseDates', () => {
 
 	it('gives null dates when nothing is published', () => {
 		expect(releaseDates([{ tag_name: '1.0.0', draft: true }])).toEqual({ first: null, last: null });
-	});
-
-	it('formats days and missing dates', () => {
-		expect(formatDay(new Date(2026, 6, 4, 23, 0).getTime())).toBe('2026-07-04');
-		expect(formatDay(null)).toBe('n/a');
 	});
 });
 

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from 'obsidian';
+import { App, PluginSettingTab, SecretComponent, Setting, moment } from 'obsidian';
 import type DownloadTrackerPlugin from './main';
 
 export interface DownloadTrackerSettings {
@@ -12,6 +12,7 @@ export interface DownloadTrackerSettings {
 	showStars: boolean;
 	showFirstRelease: boolean;
 	showLastUpdated: boolean;
+	dateFormat: string;
 }
 
 export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	showStars: false,
 	showFirstRelease: false,
 	showLastUpdated: false,
+	dateFormat: '',
 };
 
 // Fill these in before release. A link is shown only when its URL is set.
@@ -149,6 +151,25 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					void this.plugin.refresh(false);
 				}),
 			);
+
+		const dateSetting = new Setting(containerEl).setName('Date format');
+		const describeDate = () => {
+			const example = this.plugin.displayDate(Date.now());
+			dateSetting.setDesc(
+				`A moment.js pattern such as DD-MM-YYYY. Leave empty to follow Obsidian's language. Today shows as ${example}.`,
+			);
+		};
+		describeDate();
+		dateSetting.addText((text) =>
+			text
+				.setPlaceholder(moment().localeData().longDateFormat('ll'))
+				.setValue(settings.dateFormat)
+				.onChange(async (value) => {
+					settings.dateFormat = value;
+					await this.plugin.saveSettings();
+					describeDate();
+				}),
+		);
 
 		new Setting(containerEl)
 			.setName('Export note')

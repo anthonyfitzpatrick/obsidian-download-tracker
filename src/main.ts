@@ -1,4 +1,4 @@
-import { Editor, Notice, Plugin, normalizePath } from 'obsidian';
+import { Editor, Notice, Plugin, moment, normalizePath } from 'obsidian';
 import {
 	Row,
 	Snapshot,
@@ -65,6 +65,14 @@ export default class DownloadTrackerPlugin extends Plugin {
 	get report(): Report | null {
 		const r = this.storedReport;
 		return r && r.query === this.query() ? r : null;
+	}
+
+	// Obsidian sets moment's locale from its language, so 'll' and 'lll' follow it.
+	displayDate(time: number | null, withTime = false): string {
+		if (time === null) return 'n/a';
+		const pattern = this.settings.dateFormat.trim();
+		if (!pattern) return moment(time).format(withTime ? 'lll' : 'll');
+		return moment(time).format(withTime ? `${pattern} HH:mm` : pattern);
 	}
 
 	hasAccounts(): boolean {
@@ -158,7 +166,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		} catch {
 			const report = this.report;
 			this.error = report
-				? `Could not reach GitHub, so these are the counts from ${formatDate(report.fetchedAt)}. Check your connection and refresh.`
+				? `Could not reach GitHub, so these are the counts from ${this.displayDate(report.fetchedAt, true)}. Check your connection and refresh.`
 				: 'Could not reach GitHub. Check your connection and refresh.';
 		} finally {
 			this.loading = false;
@@ -193,7 +201,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		this.snapshots.push(snapshot);
 		await this.saveStoredData();
 		this.renderViews();
-		new Notice(`Snapshot saved with ${size} counts from ${formatDate(report.fetchedAt)}.`);
+		new Notice(`Snapshot saved with ${size} counts from ${this.displayDate(report.fetchedAt, true)}.`);
 	}
 
 	async exportHistory(): Promise<void> {

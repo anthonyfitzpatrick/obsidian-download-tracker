@@ -39,6 +39,8 @@ To add a column with each repository's GitHub stars, turn on **Show stars** in s
 
 To add release dates, turn on **Show initial release date**, **Show last updated date**, or both. Drafts and pre-releases are not counted. A theme with no GitHub releases shows n/a. For themes, each date setting adds one GitHub request per theme to each refresh.
 
+Dates follow your Obsidian language unless you set **Date format** to a moment.js pattern, for example `DD-MM-YYYY` for 06-10-2026 or `DD-MMM-YYYY` for 06-Oct-2026. The setting shows today's date in the chosen format. Exported history and summaries always use `YYYY-MM-DD HH:mm`, so the history table sorts by date.
+
 To see the downloads of each released version, turn on **Show downloads by version** in settings. The versions are listed under each plugin, newest first. Themes have no per-version counts.
 
 ## Save a snapshot
