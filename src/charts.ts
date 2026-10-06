@@ -1,17 +1,27 @@
 import { setTooltip } from 'obsidian';
-import { historyPoints, niceTicks, versionsOldestFirst } from './chart-data';
-import { Kind, Row, Snapshot, delta, formatCount, formatDelta } from './counts';
+import {
+	ChartFilter,
+	KindFilter,
+	Series,
+	historySeries,
+	kindMatches,
+	nameMatches,
+	niceTicks,
+	versionsOldestFirst,
+} from './chart-data';
+import { Row, Snapshot, delta, formatCount, formatDelta } from './counts';
 import type { Report } from './fetch';
 
 type DateFormatter = (time: number | null, withTime?: boolean) => string;
 
-interface Bar {
-	label: string;
-	value: number;
-	kind: Kind;
-}
+const KIND_OPTIONS: { kind: KindFilter; label: string }[] = [
+	{ kind: 'all', label: 'All' },
+	{ kind: 'plugin', label: 'Plugins' },
+	{ kind: 'theme', label: 'Themes' },
+	{ kind: 'repo', label: 'Other repositories' },
+];
 
-const KIND_NAMES: Record<Kind, string> = { plugin: 'Plugin', theme: 'Theme', repo: 'Repository' };
+const BAR_LEGEND: Record<string, string> = { plugin: 'Plugin', theme: 'Theme' };
 
 export function renderCharts(
 	parent: HTMLElement,
@@ -19,80 +29,132 @@ export function renderCharts(
 	snapshots: Snapshot[],
 	previous: Snapshot | undefined,
 	date: DateFormatter,
+	filter: ChartFilter,
+	onFilter: (filter: ChartFilter) => void,
 ): void {
-	const obsidianRows = [...report.plugins, ...report.themes];
+	const all = [...report.plugins, ...report.themes, ...report.repos];
+	const present = new Set(all.map((r) => r.kind));
+	const options = KIND_OPTIONS.filter((o) => o.kind === 'all' || present.has(o.kind));
+	if (!options.some((o) => o.kind === filter.kind)) filter.kind = 'all';
 
-	const counted = obsidianRows.filter((r) => r.downloads !== null);
-	const projects = card(
+	const controls = parent.createDiv({ cls: 'download-tracker-filters' });
+	const chipBar = controls.createDiv({ cls: 'download-tracker-chips', attr: { role: 'radiogroup', 'aria-label': 'Show' } });
+	const search = controls.createEl('input', {
+		cls: 'download-tracker-search',
+		attr: { type: 'search', placeholder: 'Filter by name', 'aria-label': 'Filter by name' },
+	});
+	search.value = filter.query;
+	const body = parent.createDiv({ cls: 'download-tracker-charts' });
+
+	const draw = () => {
+		body.empty();
+		drawCharts(body, all, snapshots, previous, date, filter);
+	};
+
+	const chips: { kind: KindFilter; el: HTMLElement }[] = [];
+	const mark = () => {
+		for (const chip of chips) {
+			chip.el.toggleClass('is-active', chip.kind === filter.kind);
+			chip.el.setAttr('aria-checked', String(chip.kind === filter.kind));
+		}
+	};
+	for (const option of options) {
+		// Not a <button>: themes restyle buttons, which can hide a plain label.
+		const el = chipBar.createDiv({ text: option.label, cls: 'download-tracker-chip', attr: { role: 'radio', tabindex: '0' } });
+		chips.push({ kind: option.kind, el });
+		const select = () => {
+			filter.kind = option.kind;
+			onFilter(filter);
+			mark();
+			draw();
+		};
+		el.addEventListener('click', select);
+		el.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				select();
+			}
+		});
+	}
+	mark();
+	search.addEventListener('input', () => {
+		filter.query = search.value;
+		onFilter(filter);
+		draw();
+	});
+
+	draw();
+}
+
+function drawCharts(
+	parent: HTMLElement,
+	all: Row[],
+	snapshots: Snapshot[],
+	previous: Snapshot | undefined,
+	date: DateFormatter,
+	filter: ChartFilter,
+): void {
+	const rows = all.filter((r) => kindMatches(r.kind, filter.kind) && nameMatches(r.name, filter.query));
+	if (rows.length === 0) {
+		empty(parent, 'Nothing matches this filter.');
+		return;
+	}
+	const repos = filter.kind === 'repo';
+
+	const counted = rows.filter((r) => r.downloads !== null);
+	const totals = card(
 		parent,
-		'Downloads by project',
-		'Each bar is one published plugin or theme, longest first. The number at the end of the bar is its download count.',
+		repos ? 'Release-file downloads' : 'Downloads by project',
+		repos
+			? 'Every file attached to each GitHub release counts, so these numbers are not comparable with plugin and theme downloads.'
+			: 'Longest bar first. The number is the download count.',
 	);
-	if (counted.length === 0) empty(projects, 'No download counts are available yet.');
+	if (counted.length === 0) empty(totals, 'No download counts are available.');
 	else {
-		const kinds = [...new Set(counted.map((r) => r.kind))];
-		if (kinds.length > 1) legend(projects, kinds);
-		bars(projects, toBars(counted));
+		const kinds = [...new Set(counted.map((r) => r.kind))].filter((k) => k in BAR_LEGEND);
+		if (kinds.length > 1) legend(totals, kinds.map((k) => ({ id: k, label: BAR_LEGEND[k] ?? k })), 'box');
+		bars(totals, counted);
 	}
 
 	const history = card(
 		parent,
 		'Downloads over time',
-		'The line joins the plugin and theme total of each saved snapshot. Save snapshots regularly to see the trend.',
+		'Each point is a saved snapshot. Hover over or tab to a date to see every line’s value.',
 	);
-	const points = historyPoints(snapshots);
-	if (points.length < 2) {
-		empty(
-			history,
-			`This needs at least two snapshots. You have ${points.length}. Use Save snapshot after refreshing on different days.`,
-		);
-	} else line(history, points, date);
+	const series = historySeries(snapshots, filter);
+	if (series.length === 0) empty(history, 'No saved snapshot includes these projects yet.');
+	else if (snapshots.length < 2) empty(history, `Needs two snapshots. You have ${snapshots.length}.`);
+	else lines(history, series, date);
 
 	if (previous) {
-		const changes = obsidianRows
+		const changes = rows
 			.map((r) => ({ row: r, change: delta(r, previous) }))
 			.filter((c): c is { row: Row; change: number } => c.change !== null);
-		const since = card(
-			parent,
-			'Downloads since the last snapshot',
-			`Change since the snapshot from ${date(previous.fetchedAt, true)}. Bars to the right are new downloads; a bar to the left means the count went down, which happens when it now comes from a source that lags.`,
-		);
-		if (changes.length === 0) empty(since, 'No counts can be compared with that snapshot.');
-		else changeBars(since, changes);
+		if (changes.length > 0) {
+			const since = card(
+				parent,
+				'Since the last snapshot',
+				`Compared with ${date(previous.fetchedAt, true)}. A bar left of the centre line means the count went down, usually because it now comes from a source that lags.`,
+			);
+			changeBars(since, changes);
+		}
 	}
 
-	const withVersions = report.plugins.filter((p) => p.versions.length > 1);
+	const withVersions = rows.filter((r) => r.versions.length > 1);
 	if (withVersions.length > 0) {
-		const versions = card(
-			parent,
-			'Downloads by version',
-			'One small chart per plugin, oldest version on the left. Each chart has its own scale, so compare shapes rather than heights between charts. The tallest column is labelled.',
-		);
+		const versions = card(parent, 'Downloads by version', 'Oldest version on the left. Each chart has its own scale.');
 		const grid = versions.createDiv({ cls: 'download-tracker-multiples' });
-		for (const p of withVersions) versionColumns(grid, p);
-	}
-
-	const repos = report.repos.filter((r) => r.downloads !== null && r.downloads > 0);
-	if (repos.length > 0) {
-		const other = card(
-			parent,
-			'Other repositories',
-			'Downloads of every file attached to each repository’s GitHub releases. These are counted differently from plugin and theme downloads, so they have their own chart.',
-		);
-		bars(other, toBars(repos));
+		for (const r of withVersions) versionColumns(grid, r);
 	}
 }
 
-function toBars(rows: Row[]): Bar[] {
-	return rows
-		.map((r) => ({ label: r.name, value: r.downloads ?? 0, kind: r.kind }))
-		.sort((a, b) => b.value - a.value);
-}
-
-function card(parent: HTMLElement, title: string, howTo: string): HTMLElement {
+function card(parent: HTMLElement, title: string, help: string): HTMLElement {
 	const el = parent.createDiv({ cls: 'download-tracker-chart' });
-	el.createEl('h4', { text: title });
-	el.createEl('p', { text: `How to read this: ${howTo}`, cls: 'download-tracker-chart-help' });
+	const head = el.createDiv({ cls: 'download-tracker-chart-head' });
+	head.createEl('h4', { text: title });
+	const details = head.createEl('details', { cls: 'download-tracker-chart-help' });
+	details.createEl('summary', { text: 'How to read this' });
+	details.createEl('p', { text: help });
 	return el;
 }
 
@@ -100,12 +162,12 @@ function empty(parent: HTMLElement, text: string): void {
 	parent.createEl('p', { text, cls: 'download-tracker-empty' });
 }
 
-function legend(parent: HTMLElement, kinds: Kind[]): void {
+function legend(parent: HTMLElement, items: { id: string; label: string }[], key: 'box' | 'line'): void {
 	const el = parent.createDiv({ cls: 'download-tracker-legend' });
-	for (const kind of kinds) {
-		const item = el.createSpan({ cls: 'download-tracker-legend-item' });
-		item.createSpan({ cls: `download-tracker-swatch is-${kind}` });
-		item.createSpan({ text: KIND_NAMES[kind] });
+	for (const item of items) {
+		const entry = el.createSpan({ cls: 'download-tracker-legend-item' });
+		entry.createSpan({ cls: `download-tracker-swatch is-${item.id} is-${key}` });
+		entry.createSpan({ text: item.label });
 	}
 }
 
@@ -115,17 +177,18 @@ function focusable(el: HTMLElement, tip: string): void {
 	setTooltip(el, tip);
 }
 
-function bars(parent: HTMLElement, items: Bar[]): void {
-	const max = Math.max(...items.map((b) => b.value), 1);
+function bars(parent: HTMLElement, rows: Row[]): void {
+	const sorted = [...rows].sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0));
+	const max = Math.max(...sorted.map((r) => r.downloads ?? 0), 1);
 	const list = parent.createDiv({ cls: 'download-tracker-bars' });
-	for (const item of items) {
+	for (const r of sorted) {
+		const value = r.downloads ?? 0;
 		const row = list.createDiv({ cls: 'download-tracker-bar-row' });
-		focusable(row, `${item.label}: ${formatCount(item.value)} downloads`);
-		row.createDiv({ text: item.label, cls: 'download-tracker-bar-label' });
+		focusable(row, `${r.name}: ${formatCount(value)} downloads`);
+		row.createDiv({ text: r.name, cls: 'download-tracker-bar-label' });
 		const track = row.createDiv({ cls: 'download-tracker-bar-track' });
-		const bar = track.createDiv({ cls: `download-tracker-bar-fill is-${item.kind}` });
-		bar.style.width = `${(item.value / max) * 100}%`;
-		track.createSpan({ text: formatCount(item.value), cls: 'download-tracker-bar-value' });
+		track.createDiv({ cls: `download-tracker-bar-fill is-${r.kind}` }).style.width = `${(value / max) * 100}%`;
+		track.createSpan({ text: formatCount(value), cls: 'download-tracker-bar-value' });
 	}
 }
 
@@ -141,44 +204,42 @@ function changeBars(parent: HTMLElement, changes: { row: Row; change: number }[]
 		const track = el.createDiv({ cls: 'download-tracker-bar-track' + (hasNegative ? ' is-diverging' : '') });
 		const plot = hasNegative ? track.createDiv({ cls: 'download-tracker-bar-plot' }) : track;
 		const width = (Math.abs(change) / max) * (hasNegative ? 50 : 100);
-		const bar = plot.createDiv({
-			cls: `download-tracker-bar-fill ${change < 0 ? 'is-negative' : 'is-positive'}`,
-		});
-		bar.style.width = `${width}%`;
+		plot.createDiv({ cls: `download-tracker-bar-fill ${change < 0 ? 'is-negative' : 'is-positive'}` }).style.width =
+			`${width}%`;
 		track.createSpan({ text: formatDelta(change), cls: 'download-tracker-bar-value' });
 	}
 }
 
-function versionColumns(parent: HTMLElement, plugin: Row): void {
-	const versions = versionsOldestFirst(plugin.versions);
+function versionColumns(parent: HTMLElement, row: Row): void {
+	const versions = versionsOldestFirst(row.versions);
 	const max = Math.max(...versions.map((v) => v.downloads), 1);
 	const tallest = versions.reduce((a, b) => (b.downloads > a.downloads ? b : a));
 	const el = parent.createDiv({ cls: 'download-tracker-multiple' });
-	const title = el.createDiv({ text: plugin.name, cls: 'download-tracker-multiple-title' });
-	setTooltip(title, plugin.name);
-	const plot = el.createDiv({ cls: 'download-tracker-columns' });
+	el.createDiv({ text: row.name, cls: 'download-tracker-multiple-title' });
+	const plot = el.createDiv({ cls: `download-tracker-columns is-${row.kind}` });
 	for (const v of versions) {
 		const slot = plot.createDiv({ cls: 'download-tracker-column-slot' });
-		focusable(slot, `${plugin.name} ${v.version}: ${formatCount(v.downloads)} downloads`);
+		focusable(slot, `${row.name} ${v.version}: ${formatCount(v.downloads)} downloads`);
 		if (v === tallest) slot.createSpan({ text: formatCount(v.downloads), cls: 'download-tracker-column-value' });
-		const column = slot.createDiv({ cls: 'download-tracker-column is-plugin' });
-		column.style.height = `${(v.downloads / max) * 100}%`;
+		slot.createDiv({ cls: 'download-tracker-column' }).style.height = `${(v.downloads / max) * 100}%`;
 	}
 	const axis = el.createDiv({ cls: 'download-tracker-columns-axis' });
 	axis.createSpan({ text: versions[0]?.version ?? '' });
 	axis.createSpan({ text: versions[versions.length - 1]?.version ?? '' });
 }
 
-function line(parent: HTMLElement, points: { time: number; value: number }[], date: DateFormatter): void {
-	const values = points.map((p) => p.value);
+function lines(parent: HTMLElement, series: Series[], date: DateFormatter): void {
+	const times = series[0]?.points.map((p) => p.time) ?? [];
+	const values = series.flatMap((s) => s.points.map((p) => p.value));
 	const ticks = niceTicks(Math.min(...values), Math.max(...values));
 	const low = ticks[0] ?? 0;
 	const high = ticks[ticks.length - 1] ?? 1;
-	const first = points[0]?.time ?? 0;
-	const span = Math.max((points[points.length - 1]?.time ?? 1) - first, 1);
+	const first = times[0] ?? 0;
+	const span = Math.max((times[times.length - 1] ?? 1) - first, 1);
 	const x = (t: number) => ((t - first) / span) * 100;
 	const y = (v: number) => 100 - ((v - low) / (high - low || 1)) * 100;
 
+	if (series.length > 1) legend(parent, series, 'line');
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
 	const yAxis = frame.createDiv({ cls: 'download-tracker-line-y' });
 	const plot = frame.createDiv({ cls: 'download-tracker-line-plot' });
@@ -191,24 +252,39 @@ function line(parent: HTMLElement, points: { time: number; value: number }[], da
 		attr: { viewBox: '0 0 100 100', preserveAspectRatio: 'none', 'aria-hidden': 'true' },
 		cls: 'download-tracker-line-svg',
 	});
-	const coords = points.map((p) => `${x(p.time)},${y(p.value)}`);
-	svg.createSvg('polygon', {
-		attr: { points: `0,100 ${coords.join(' ')} 100,100` },
-		cls: 'download-tracker-line-area',
-	});
-	svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: 'download-tracker-line-stroke' });
-
-	points.forEach((p, i) => {
-		const dot = plot.createDiv({ cls: 'download-tracker-line-dot' });
-		dot.style.left = `${x(p.time)}%`;
-		dot.style.top = `${y(p.value)}%`;
-		focusable(dot, `${date(p.time, true)}: ${formatCount(p.value)} downloads`);
-		if (i === points.length - 1) {
-			dot.createSpan({ text: formatCount(p.value), cls: 'download-tracker-line-end' });
+	for (const s of series) {
+		const coords = s.points.map((p) => `${x(p.time)},${y(p.value)}`);
+		// A wash under one line helps; under several lines the washes stack into noise.
+		if (series.length === 1) {
+			svg.createSvg('polygon', {
+				attr: { points: `0,100 ${coords.join(' ')} 100,100` },
+				cls: ['download-tracker-line-area', `is-${s.id}`],
+			});
 		}
+		svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', `is-${s.id}`] });
+		for (const p of s.points) {
+			const dot = plot.createDiv({ cls: `download-tracker-line-dot is-${s.id}` });
+			dot.style.left = `${x(p.time)}%`;
+			dot.style.top = `${y(p.value)}%`;
+		}
+	}
+
+	// One hit column per snapshot, so the pointer only has to find the date, not a line.
+	times.forEach((t, i) => {
+		const hit = plot.createDiv({ cls: 'download-tracker-line-hit' });
+		hit.style.left = `${x(t)}%`;
+		const parts = series.map((s) => `${s.label} ${formatCount(s.points[i]?.value ?? null)}`);
+		focusable(hit, `${date(t, true)}: ${parts.join(', ')}`);
 	});
+
+	const ends = frame.createDiv({ cls: 'download-tracker-line-ends' });
+	for (const s of series) {
+		const last = s.points[s.points.length - 1];
+		if (!last) continue;
+		ends.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${y(last.value)}%`;
+	}
 
 	const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
 	xAxis.createSpan({ text: date(first) });
-	xAxis.createSpan({ text: date(points[points.length - 1]?.time ?? first) });
+	xAxis.createSpan({ text: date(times[times.length - 1] ?? first) });
 }

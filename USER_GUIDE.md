@@ -56,13 +56,16 @@ To see the downloads of each released version, turn on **Show downloads by versi
 
 ## Read the charts
 
-The dashboard has two tabs. **Tables** shows the tables described above. **Charts** shows the same counts as charts, and the dashboard remembers which tab you last used. Every chart has a "How to read this" line under its title. Hover over a bar, column or point, or move to it with the Tab key, to see its exact value.
+The dashboard has two tabs. **Tables** shows the tables described above. **Charts** shows the same counts as charts. The dashboard remembers the tab and the chart filter you last used.
 
-- **Downloads by project.** One bar per published plugin and theme, longest first, coloured by type, with the count at the end of each bar.
-- **Downloads over time.** A line through the plugin and theme total of each saved snapshot. It needs at least two snapshots.
-- **Downloads since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar to the left means the count went down, which happens when a count now comes from a source that lags. Shown only when there is a snapshot to compare with.
-- **Downloads by version.** One small column chart per plugin with more than one version, oldest version on the left. Each has its own scale.
-- **Other repositories.** Release-file downloads of other repositories, when any have downloads. These are kept apart because they are counted differently.
+Above the charts is a filter row. Choose **All** (plugins and themes), **Plugins**, **Themes** or **Other repositories**, and type in **Filter by name** to narrow it further. The filter applies to every chart. Each chart has a **How to read this** note you can open. Hover over a bar, column or date, or move to it with the Tab key, to see exact values.
+
+- **Downloads by project.** One bar per project, longest first, with the count at the end. With **Other repositories** chosen, it shows release-file downloads instead.
+- **Downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line. Each point is a saved snapshot, so it needs at least two.
+- **Since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar left of the centre line means the count went down.
+- **Downloads by version.** One small column chart per project with more than one version, oldest on the left. Each has its own scale.
+
+On a narrow pane or a phone, names move above their bars and the charts stack.
 
 ## Save a snapshot
 
