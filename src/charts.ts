@@ -1,9 +1,11 @@
 import { setTooltip } from 'obsidian';
 import {
 	ChartFilter,
+	Current,
 	KindFilter,
 	Series,
 	historySeries,
+	projectSeries,
 	kindMatches,
 	nameMatches,
 	niceTicks,
@@ -21,7 +23,6 @@ const KIND_OPTIONS: { kind: KindFilter; label: string }[] = [
 	{ kind: 'repo', label: 'Other repositories' },
 ];
 
-const BAR_LEGEND: Record<string, string> = { plugin: 'Plugin', theme: 'Theme' };
 
 export function renderCharts(
 	parent: HTMLElement,
@@ -48,7 +49,7 @@ export function renderCharts(
 
 	const draw = () => {
 		body.empty();
-		drawCharts(body, all, snapshots, previous, date, filter);
+		drawCharts(body, all, snapshots, previous, date, filter, { time: report.fetchedAt, rows: all });
 	};
 
 	const chips: { kind: KindFilter; el: HTMLElement }[] = [];
@@ -93,37 +94,31 @@ function drawCharts(
 	previous: Snapshot | undefined,
 	date: DateFormatter,
 	filter: ChartFilter,
+	current: Current,
 ): void {
 	const rows = all.filter((r) => kindMatches(r.kind, filter.kind) && nameMatches(r.name, filter.query));
 	if (rows.length === 0) {
 		empty(parent, 'Nothing matches this filter.');
 		return;
 	}
-	const repos = filter.kind === 'repo';
+	const needHistory = 'Save a snapshot to start the lines. Each snapshot adds a point, and today’s counts are the last one.';
 
-	const counted = rows.filter((r) => r.downloads !== null);
-	const totals = card(
+	const projects = card(
 		parent,
-		repos ? 'Release-file downloads' : 'Downloads by project',
-		repos
-			? 'Every file attached to each GitHub release counts, so these numbers are not comparable with plugin and theme downloads.'
-			: 'Longest bar first. The number is the download count.',
+		filter.kind === 'repo' ? 'Release-file downloads over time' : 'Downloads by project',
+		filter.kind === 'repo'
+			? 'One line per repository. Every file attached to a GitHub release counts, so these are not comparable with plugin and theme downloads.'
+			: 'One line per project. Hover over a name in the legend to pick out its line, or over a date to see every value.',
 	);
-	if (counted.length === 0) empty(totals, 'No download counts are available.');
-	else {
-		const kinds = [...new Set(counted.map((r) => r.kind))].filter((k) => k in BAR_LEGEND);
-		if (kinds.length > 1) legend(totals, kinds.map((k) => ({ id: k, label: BAR_LEGEND[k] ?? k })), 'box');
-		bars(totals, counted);
-	}
+	const perProject = projectSeries(snapshots, filter, current);
+	if (perProject.length === 0) empty(projects, 'No download counts are available.');
+	else if (snapshots.length === 0) empty(projects, needHistory);
+	else lines(projects, perProject, date);
 
-	const history = card(
-		parent,
-		'Downloads over time',
-		'Each point is a saved snapshot. Hover over or tab to a date to see every line’s value.',
-	);
-	const series = historySeries(snapshots, filter);
-	if (series.length === 0) empty(history, 'No saved snapshot includes these projects yet.');
-	else if (snapshots.length < 2) empty(history, `Needs two snapshots. You have ${snapshots.length}.`);
+	const history = card(parent, 'Total downloads over time', 'Each point is a saved snapshot; the last is today’s counts.');
+	const series = historySeries(snapshots, filter, current);
+	if (series.length === 0) empty(history, 'No counts include these projects yet.');
+	else if (snapshots.length === 0) empty(history, needHistory);
 	else lines(history, series, date);
 
 	if (previous) {
@@ -162,12 +157,33 @@ function empty(parent: HTMLElement, text: string): void {
 	parent.createEl('p', { text, cls: 'download-tracker-empty' });
 }
 
-function legend(parent: HTMLElement, items: { id: string; label: string }[], key: 'box' | 'line'): void {
+function legend(
+	parent: HTMLElement,
+	items: { id: string; label: string; cls: string }[],
+	key: 'box' | 'line',
+	frame?: HTMLElement,
+	marks?: Map<string, Element[]>,
+): void {
 	const el = parent.createDiv({ cls: 'download-tracker-legend' });
 	for (const item of items) {
 		const entry = el.createSpan({ cls: 'download-tracker-legend-item' });
-		entry.createSpan({ cls: `download-tracker-swatch is-${item.id} is-${key}` });
+		entry.createSpan({ cls: `download-tracker-swatch ${item.cls} is-${key}` });
 		entry.createSpan({ text: item.label });
+		if (!frame || !marks) continue;
+		// Picking out one line fades the others, so it can be followed through crossings.
+		entry.tabIndex = 0;
+		const on = () => {
+			frame.addClass('has-highlight');
+			for (const m of marks.get(item.id) ?? []) m.classList.add('is-highlighted');
+		};
+		const off = () => {
+			frame.removeClass('has-highlight');
+			for (const m of marks.get(item.id) ?? []) m.classList.remove('is-highlighted');
+		};
+		entry.addEventListener('mouseenter', on);
+		entry.addEventListener('mouseleave', off);
+		entry.addEventListener('focus', on);
+		entry.addEventListener('blur', off);
 	}
 }
 
@@ -175,21 +191,6 @@ function focusable(el: HTMLElement, tip: string): void {
 	el.tabIndex = 0;
 	el.setAttr('aria-label', tip);
 	setTooltip(el, tip);
-}
-
-function bars(parent: HTMLElement, rows: Row[]): void {
-	const sorted = [...rows].sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0));
-	const max = Math.max(...sorted.map((r) => r.downloads ?? 0), 1);
-	const list = parent.createDiv({ cls: 'download-tracker-bars' });
-	for (const r of sorted) {
-		const value = r.downloads ?? 0;
-		const row = list.createDiv({ cls: 'download-tracker-bar-row' });
-		focusable(row, `${r.name}: ${formatCount(value)} downloads`);
-		row.createDiv({ text: r.name, cls: 'download-tracker-bar-label' });
-		const track = row.createDiv({ cls: 'download-tracker-bar-track' });
-		track.createDiv({ cls: `download-tracker-bar-fill is-${r.kind}` }).style.width = `${(value / max) * 100}%`;
-		track.createSpan({ text: formatCount(value), cls: 'download-tracker-bar-value' });
-	}
 }
 
 function changeBars(parent: HTMLElement, changes: { row: Row; change: number }[]): void {
@@ -229,7 +230,7 @@ function versionColumns(parent: HTMLElement, row: Row): void {
 }
 
 function lines(parent: HTMLElement, series: Series[], date: DateFormatter): void {
-	const times = series[0]?.points.map((p) => p.time) ?? [];
+	const times = [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b);
 	const values = series.flatMap((s) => s.points.map((p) => p.value));
 	const ticks = niceTicks(Math.min(...values), Math.max(...values));
 	const low = ticks[0] ?? 0;
@@ -239,8 +240,10 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter): void
 	const x = (t: number) => ((t - first) / span) * 100;
 	const y = (v: number) => 100 - ((v - low) / (high - low || 1)) * 100;
 
-	if (series.length > 1) legend(parent, series, 'line');
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
+	const marks = new Map<string, Element[]>();
+	if (series.length > 1) legend(parent, series, 'line', frame, marks);
+	parent.appendChild(frame);
 	const yAxis = frame.createDiv({ cls: 'download-tracker-line-y' });
 	const plot = frame.createDiv({ cls: 'download-tracker-line-plot' });
 	for (const tick of ticks) {
@@ -253,38 +256,56 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter): void
 		cls: 'download-tracker-line-svg',
 	});
 	for (const s of series) {
+		const own: Element[] = [];
 		const coords = s.points.map((p) => `${x(p.time)},${y(p.value)}`);
 		// A wash under one line helps; under several lines the washes stack into noise.
 		if (series.length === 1) {
-			svg.createSvg('polygon', {
-				attr: { points: `0,100 ${coords.join(' ')} 100,100` },
-				cls: ['download-tracker-line-area', `is-${s.id}`],
-			});
+			own.push(
+				svg.createSvg('polygon', {
+					attr: { points: `0,100 ${coords.join(' ')} 100,100` },
+					cls: ['download-tracker-line-area', s.cls],
+				}),
+			);
 		}
-		svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', `is-${s.id}`] });
+		own.push(svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', s.cls] }));
 		for (const p of s.points) {
-			const dot = plot.createDiv({ cls: `download-tracker-line-dot is-${s.id}` });
+			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}` });
 			dot.style.left = `${x(p.time)}%`;
 			dot.style.top = `${y(p.value)}%`;
+			own.push(dot);
 		}
+		marks.set(s.id, own);
 	}
 
-	// One hit column per snapshot, so the pointer only has to find the date, not a line.
-	times.forEach((t, i) => {
+	// One hit column per date, so the pointer only has to find the date, not a line.
+	for (const t of times) {
 		const hit = plot.createDiv({ cls: 'download-tracker-line-hit' });
 		hit.style.left = `${x(t)}%`;
-		const parts = series.map((s) => `${s.label} ${formatCount(s.points[i]?.value ?? null)}`);
+		const parts = series
+			.map((s) => ({ label: s.label, value: s.points.find((p) => p.time === t)?.value }))
+			.filter((p): p is { label: string; value: number } => p.value !== undefined)
+			.sort((a, b) => b.value - a.value)
+			.map((p) => `${p.label} ${formatCount(p.value)}`);
 		focusable(hit, `${date(t, true)}: ${parts.join(', ')}`);
-	});
-
-	const ends = frame.createDiv({ cls: 'download-tracker-line-ends' });
-	for (const s of series) {
-		const last = s.points[s.points.length - 1];
-		if (!last) continue;
-		ends.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${y(last.value)}%`;
 	}
 
+	// End values only where they don't collide; the legend and tooltip carry the rest.
+	const ends = frame.createDiv({ cls: 'download-tracker-line-ends' });
+	const placed: number[] = [];
+	const lasts = series
+		.map((s) => s.points[s.points.length - 1])
+		.filter((p): p is { time: number; value: number } => p !== undefined)
+		.sort((a, b) => b.value - a.value);
+	for (const last of lasts) {
+		const top = y(last.value);
+		if (placed.some((p) => Math.abs(p - top) < 9)) continue;
+		placed.push(top);
+		ends.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${top}%`;
+	}
+
+	const last = times[times.length - 1] ?? first;
+	const sameDay = date(first) === date(last);
 	const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
-	xAxis.createSpan({ text: date(first) });
-	xAxis.createSpan({ text: date(times[times.length - 1] ?? first) });
+	xAxis.createSpan({ text: date(first, sameDay) });
+	xAxis.createSpan({ text: date(last, sameDay) });
 }

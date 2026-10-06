@@ -60,8 +60,10 @@ The dashboard has two tabs. **Tables** shows the tables described above. **Chart
 
 Above the charts is a filter row. Choose **All** (plugins and themes), **Plugins**, **Themes** or **Other repositories**, and type in **Filter by name** to narrow it further. The filter applies to every chart. Each chart has a **How to read this** note you can open. Hover over a bar, column or date, or move to it with the Tab key, to see exact values.
 
-- **Downloads by project.** One bar per project, longest first, with the count at the end. With **Other repositories** chosen, it shows release-file downloads instead.
-- **Downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line. Each point is a saved snapshot, so it needs at least two.
+- **Downloads by project.** One line per project, so you can see how they compare and grow. Each project keeps its colour whatever the filter. Hover over a name in the legend to pick out its line. With more than eight projects, the smallest share one grey "Other" line. With **Other repositories** chosen, it shows release-file downloads.
+- **Total downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line.
+
+In both line charts each point is a saved snapshot, and the last point is today's counts, so the lines start once you have saved one snapshot.
 - **Since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar left of the centre line means the count went down.
 - **Downloads by version.** One small column chart per project with more than one version, oldest on the left. Each has its own scale.
 
