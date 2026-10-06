@@ -54,6 +54,16 @@ Dates follow your Obsidian language unless you set **Date format** to a moment.j
 
 To see the downloads of each released version, turn on **Show downloads by version** in settings. The versions are listed under each plugin, newest first. Themes have no per-version counts.
 
+## Read the charts
+
+The dashboard has two tabs. **Tables** shows the tables described above. **Charts** shows the same counts as charts, and the dashboard remembers which tab you last used. Every chart has a "How to read this" line under its title. Hover over a bar, column or point, or move to it with the Tab key, to see its exact value.
+
+- **Downloads by project.** One bar per published plugin and theme, longest first, coloured by type, with the count at the end of each bar.
+- **Downloads over time.** A line through the plugin and theme total of each saved snapshot. It needs at least two snapshots.
+- **Downloads since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar to the left means the count went down, which happens when a count now comes from a source that lags. Shown only when there is a snapshot to compare with.
+- **Downloads by version.** One small column chart per plugin with more than one version, oldest version on the left. Each has its own scale.
+- **Other repositories.** Release-file downloads of other repositories, when any have downloads. These are kept apart because they are counted differently.
+
 ## Save a snapshot
 
 Select **Save snapshot** on the dashboard, or run **Download Tracker: Save snapshot**. The counts on screen are saved with the time they were fetched.

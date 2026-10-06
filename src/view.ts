@@ -1,4 +1,5 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, ViewStateResult, WorkspaceLeaf } from 'obsidian';
+import { renderCharts } from './charts';
 import {
 	KIND_LABELS,
 	Row,
@@ -20,10 +21,17 @@ const NUMERIC = new Set(['Downloads', 'Change', 'Stars', 'Open issues', 'Open pu
 const DATES = new Set(['Initial release', 'Last updated']);
 const VISIBILITY_LABELS = { public: 'Public', private: 'Private' };
 
+type Tab = 'tables' | 'charts';
+const TABS: { id: Tab; label: string }[] = [
+	{ id: 'tables', label: 'Tables' },
+	{ id: 'charts', label: 'Charts' },
+];
+
 export class DashboardView extends ItemView {
 	private refreshButton!: HTMLButtonElement;
 	private saveButton!: HTMLButtonElement;
 	private bodyEl: HTMLElement | null = null;
+	private tab: Tab = 'tables';
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -42,6 +50,18 @@ export class DashboardView extends ItemView {
 
 	getIcon(): string {
 		return 'download';
+	}
+
+	// Saved with the workspace, so the dashboard reopens on the tab last used.
+	getState(): Record<string, unknown> {
+		return { ...super.getState(), tab: this.tab };
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		const tab = (state as { tab?: unknown } | null)?.tab;
+		if (tab === 'tables' || tab === 'charts') this.tab = tab;
+		await super.setState(state, result);
+		this.render();
 	}
 
 	async onOpen(): Promise<void> {
@@ -97,6 +117,37 @@ export class DashboardView extends ItemView {
 		this.tile(tiles, formatCount(total(report.themes)), `Themes (${report.themes.length})`);
 		if (report.repos.length > 0) {
 			this.tile(tiles, formatCount(sumKnown(report.repos.map((r) => r.downloads))), `Other repositories (${report.repos.length})`);
+		}
+
+		const tabBar = root.createDiv({ cls: 'download-tracker-tabs', attr: { role: 'tablist' } });
+		for (const { id, label } of TABS) {
+			// Not a <button>: themes restyle buttons, which can hide the label of a plain tab.
+			const tabEl = tabBar.createDiv({
+				text: label,
+				cls: 'download-tracker-tab' + (id === this.tab ? ' is-active' : ''),
+				attr: { role: 'tab', tabindex: '0', 'aria-selected': String(id === this.tab) },
+			});
+			const select = () => {
+				if (this.tab === id) return;
+				this.tab = id;
+				this.app.workspace.requestSaveLayout();
+				this.render();
+				this.bodyEl?.querySelector<HTMLElement>('.download-tracker-tab.is-active')?.focus();
+			};
+			tabEl.addEventListener('click', select);
+			tabEl.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					select();
+				}
+			});
+		}
+
+		if (this.tab === 'charts') {
+			renderCharts(root.createDiv({ attr: { role: 'tabpanel' } }), report, this.plugin.snapshots, previous, (t, withTime) =>
+				this.plugin.displayDate(t, withTime),
+			);
+			return;
 		}
 
 		this.table(root, 'Published Obsidian plugins', report.plugins, previous, 'No plugins from these accounts are in the community plugin list.');
