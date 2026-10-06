@@ -1,0 +1,171 @@
+import { requestUrl } from 'obsidian';
+import {
+	GitHubRelease,
+	Row,
+	isOwned,
+	sortRows,
+	statsFileVersions,
+	sumManifestDownloads,
+	toCount,
+} from './counts';
+
+const RAW = 'https://raw.githubusercontent.com/obsidianmd/obsidian-releases/HEAD/';
+const GITHUB_API = 'https://api.github.com/';
+const THEME_STATS_URLS = ['https://releases.obsidian.md/stats/theme', RAW + 'community-css-theme-stats.json'];
+
+export interface Report {
+	fetchedAt: number;
+	query: string;
+	plugins: Row[];
+	themes: Row[];
+	notices: string[];
+}
+
+interface ListEntry {
+	id?: string;
+	name: string;
+	repo: string;
+}
+
+type StatsFile = Record<string, Record<string, unknown> | undefined>;
+
+class HttpError extends Error {
+	constructor(readonly status: number) {
+		super(`HTTP ${status}`);
+	}
+}
+
+async function getJson(url: string, token = ''): Promise<unknown> {
+	const headers: Record<string, string> = {};
+	if (url.startsWith(GITHUB_API)) {
+		headers.Accept = 'application/vnd.github+json';
+		if (token) headers.Authorization = `Bearer ${token}`;
+	}
+	const res = await requestUrl({ url, headers, throw: false });
+	if (res.status >= 400) throw new HttpError(res.status);
+	return res.json as unknown;
+}
+
+async function githubLive(repo: string, token: string): Promise<ReturnType<typeof sumManifestDownloads>> {
+	const releases: GitHubRelease[] = [];
+	for (let page = 1; ; page++) {
+		const batch = (await getJson(`${GITHUB_API}repos/${repo}/releases?per_page=100&page=${page}`, token)) as GitHubRelease[];
+		releases.push(...batch);
+		if (batch.length < 100) return sumManifestDownloads(releases);
+	}
+}
+
+async function firstThemeStats(): Promise<Record<string, unknown> | null> {
+	for (const url of THEME_STATS_URLS) {
+		try {
+			return (await getJson(url)) as Record<string, unknown>;
+		} catch {
+			// Try the next source.
+		}
+	}
+	return null;
+}
+
+export function queryKey(usernames: string[], extraRepos: string[]): string {
+	return [...usernames, '|', ...extraRepos].map((s) => s.toLowerCase()).join(',');
+}
+
+export async function loadReport(
+	usernames: string[],
+	extraRepos: string[],
+	token: string,
+	onProgress: (message: string) => void,
+): Promise<Report> {
+	const notices: string[] = [];
+
+	onProgress('Loading the community lists...');
+	const [pluginList, pluginStats, themeList] = await Promise.all([
+		getJson(RAW + 'community-plugins.json').then((d) => d as ListEntry[]),
+		getJson(RAW + 'community-plugin-stats.json').then(
+			(d) => d as StatsFile,
+			(): StatsFile => {
+				notices.push("Obsidian's plugin stats file could not be loaded.");
+				return {};
+			},
+		),
+		getJson(RAW + 'community-css-themes.json').then(
+			(d) => d as ListEntry[],
+			(): ListEntry[] => {
+				notices.push('The community theme list could not be loaded, so themes are not shown.');
+				return [];
+			},
+		),
+	]);
+
+	const myPlugins = pluginList.filter((p) => isOwned(p.repo, usernames, extraRepos));
+	const myThemes = themeList.filter((t) => isOwned(t.repo, usernames, extraRepos));
+
+	const listed = new Set([...myPlugins, ...myThemes].map((e) => e.repo.toLowerCase()));
+	const missing = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
+	if (missing.length > 0) notices.push(`Not found in the community lists: ${missing.join(', ')}.`);
+
+	let githubBlocked: 'rate' | 'token' | null = null;
+	const plugins: Row[] = [];
+	for (const [i, p] of myPlugins.entries()) {
+		onProgress(`Checking plugin ${i + 1} of ${myPlugins.length}: ${p.name}...`);
+		const id = p.id ?? p.repo;
+		const stats = pluginStats[id];
+		const fileCount = stats ? toCount(stats) : null;
+		let live: ReturnType<typeof sumManifestDownloads> | null = null;
+		if (!githubBlocked) {
+			try {
+				live = await githubLive(p.repo, token);
+			} catch (e) {
+				if (e instanceof HttpError && (e.status === 403 || e.status === 429)) githubBlocked = 'rate';
+				else if (e instanceof HttpError && e.status === 401) githubBlocked = 'token';
+				else if (!(e instanceof HttpError)) throw e;
+			}
+		}
+		plugins.push({
+			kind: 'plugin',
+			name: p.name,
+			id,
+			repo: p.repo,
+			downloads: live ? live.total : fileCount,
+			source: live ? 'live' : fileCount !== null ? 'file' : 'na',
+			versions: live ? live.versions : stats ? statsFileVersions(stats) : [],
+		});
+	}
+
+	if (githubBlocked === 'rate') {
+		notices.push(
+			token
+				? "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Try again later."
+				: "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.",
+		);
+	} else if (githubBlocked === 'token') {
+		notices.push("GitHub rejected the token, so plugins show Obsidian's stats file instead. Check the token in settings.");
+	}
+
+	let themes: Row[] = [];
+	if (myThemes.length > 0) {
+		onProgress('Checking theme download counts...');
+		const themeStats = await firstThemeStats();
+		if (!themeStats) notices.push('Theme download counts could not be loaded, so they show as n/a.');
+		themes = myThemes.map((t) => {
+			const count = themeStats ? toCount(themeStats[t.name]) : null;
+			return {
+				kind: 'theme',
+				name: t.name,
+				id: t.repo,
+				repo: t.repo,
+				downloads: count,
+				source: count !== null ? 'file' : 'na',
+				versions: [],
+			};
+		});
+	}
+
+	return {
+		fetchedAt: Date.now(),
+		query: queryKey(usernames, extraRepos),
+		plugins: sortRows(plugins),
+		themes: sortRows(themes),
+		notices,
+	};
+}
