@@ -83,6 +83,7 @@ export interface ReportOptions {
 	withThemeDates: boolean;
 	withAllRepos: boolean;
 	withIssues: boolean;
+	withPulls: boolean;
 }
 
 interface RepoInfo {
@@ -91,6 +92,7 @@ interface RepoInfo {
 	fork?: boolean;
 	stargazers_count?: number;
 	has_issues?: boolean;
+	has_pull_requests?: boolean;
 	open_issues_count?: number;
 }
 
@@ -104,6 +106,7 @@ export function queryKey(o: ReportOptions): string {
 		o.withThemeDates ? '|theme-dates' : '',
 		o.withAllRepos ? '|all-repos' : '',
 		o.withIssues ? '|issues' : '',
+		o.withPulls ? '|pulls' : '',
 	]
 		.map((s) => s.toLowerCase())
 		.join(',');
@@ -124,7 +127,7 @@ export async function loadReport(
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
-	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos, withIssues } = options;
+	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos, withIssues, withPulls } = options;
 	const notices: string[] = [];
 
 	onProgress('Loading the community lists...');
@@ -153,18 +156,17 @@ export async function loadReport(
 	// After the first refusal, later GitHub calls are skipped: they would be refused too.
 	let githubBlocked: 'rate' | 'token' | null = null;
 	const notFound = new Set<string>();
-	const forbidden = new Set<string>();
-	let currentRepo = '';
+	let lastStatus = 0;
 	const fromGitHub = async <T>(call: () => Promise<T>): Promise<T | null> => {
+		lastStatus = 0;
 		if (githubBlocked) return null;
 		try {
 			return await call();
 		} catch (e) {
 			if (!(e instanceof HttpError)) throw e;
+			lastStatus = e.status;
 			if (e.rateLimited) githubBlocked = 'rate';
 			else if (e.status === 401) githubBlocked = 'token';
-			else if (e.status === 403) forbidden.add(currentRepo);
-			else if (e.status === 404) notFound.add(currentRepo);
 			return null;
 		}
 	};
@@ -175,8 +177,8 @@ export async function loadReport(
 	const info = async (repo: string): Promise<RepoInfo | null> => {
 		const key = repo.toLowerCase();
 		if (!repoInfo.has(key)) {
-			currentRepo = repo;
 			repoInfo.set(key, (await fromGitHub(() => getJson(`${GITHUB_API}repos/${repo}`, token))) as RepoInfo | null);
+			if (lastStatus === 404) notFound.add(repo);
 		}
 		return repoInfo.get(key) ?? null;
 	};
@@ -184,18 +186,29 @@ export async function loadReport(
 	const visibility = async (repo: string) => (withAllRepos ? toVisibility(await info(repo)) : null);
 	// GitHub's open_issues_count includes pull requests, so issues are listed and
 	// counted only when that number isn't already zero.
-	const issueAccess = new Set<string>();
+	// open_issues_count covers issues and pull requests together, so zero means
+	// neither list needs fetching.
+	const noIssueAccess: string[] = [];
+	const noPullAccess: string[] = [];
 	const openIssues = async (repo: string): Promise<number | null> => {
 		if (!withIssues) return null;
 		const repoData = await info(repo);
 		if (!repoData || repoData.has_issues === false) return null;
 		if (repoData.open_issues_count === 0) return 0;
-		currentRepo = repo;
 		const items = await fromGitHub(() =>
 			githubPages<{ pull_request?: unknown }>(`repos/${repo}/issues?state=open`, token),
 		);
-		if (!items) issueAccess.add(repo);
+		if (!items && lastStatus === 403) noIssueAccess.push(repo);
 		return items ? countIssues(items) : null;
+	};
+	const openPulls = async (repo: string): Promise<number | null> => {
+		if (!withPulls) return null;
+		const repoData = await info(repo);
+		if (!repoData || repoData.has_pull_requests === false) return null;
+		if (repoData.open_issues_count === 0) return 0;
+		const items = await fromGitHub(() => githubPages<unknown>(`repos/${repo}/pulls?state=open`, token));
+		if (!items && lastStatus === 403) noPullAccess.push(repo);
+		return items ? items.length : null;
 	};
 
 	const otherRepos = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
@@ -226,7 +239,6 @@ export async function loadReport(
 		const id = p.id ?? p.repo;
 		const stats = pluginStats[id];
 		const fileCount = stats ? toCount(stats) : null;
-		currentRepo = p.repo;
 		const releases = await fromGitHub(() => githubReleases(p.repo, token));
 		const live = releases ? sumManifestDownloads(releases) : null;
 		const dates = releases ? releaseDates(releases) : null;
@@ -244,6 +256,7 @@ export async function loadReport(
 			lastUpdated: dates ? dates.last : statsUpdated,
 			visibility: await visibility(p.repo),
 			openIssues: await openIssues(p.repo),
+			openPulls: await openPulls(p.repo),
 		});
 	}
 
@@ -255,7 +268,6 @@ export async function loadReport(
 		for (const [i, t] of myThemes.entries()) {
 			onProgress(`Checking theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
-			currentRepo = t.repo;
 			const releases = withThemeDates ? await fromGitHub(() => githubReleases(t.repo, token)) : null;
 			const dates = releases ? releaseDates(releases) : null;
 			themes.push({
@@ -271,6 +283,7 @@ export async function loadReport(
 				lastUpdated: dates ? dates.last : null,
 				visibility: await visibility(t.repo),
 				openIssues: await openIssues(t.repo),
+				openPulls: await openPulls(t.repo),
 			});
 		}
 	}
@@ -278,8 +291,8 @@ export async function loadReport(
 	const repos: Row[] = [];
 	for (const [i, repo] of otherRepos.entries()) {
 		onProgress(`Checking repository ${i + 1} of ${otherRepos.length}: ${repo}...`);
-		currentRepo = repo;
 		const releases = await fromGitHub(() => githubReleases(repo, token));
+		if (lastStatus === 404) notFound.add(repo);
 		const counted = releases ? sumReleaseFiles(releases) : null;
 		const dates = releases ? releaseDates(releases) : null;
 		const missing = notFound.has(repo);
@@ -296,18 +309,23 @@ export async function loadReport(
 			lastUpdated: dates ? dates.last : null,
 			visibility: missing ? null : await visibility(repo),
 			openIssues: missing ? null : await openIssues(repo),
+			openPulls: missing ? null : await openPulls(repo),
 		});
 	}
 	if (notFound.size > 0) notices.push(`Not found on GitHub, or private: ${[...notFound].join(', ')}.`);
-	const noIssueAccess = [...issueAccess].filter((r) => forbidden.has(r));
 	if (noIssueAccess.length > 0) {
 		notices.push(
 			`The GitHub token can't read issues for ${noIssueAccess.join(', ')}, so they show as n/a. Give the token read-only Issues access to count them.`,
 		);
 	}
+	if (noPullAccess.length > 0) {
+		notices.push(
+			`The GitHub token can't read pull requests for ${noPullAccess.join(', ')}, so they show as n/a. Give the token read-only Pull requests access to count them.`,
+		);
+	}
 
 	const starsNote =
-		withStars || withThemeDates || withAllRepos || withIssues || repos.length > 0
+		withStars || withThemeDates || withAllRepos || withIssues || withPulls || repos.length > 0
 			? ' Anything else that needed GitHub shows as n/a.'
 			: '';
 	if (githubBlocked === 'rate') {

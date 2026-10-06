@@ -26,7 +26,7 @@ import {
 } from '../src/counts';
 
 function row(id: string, downloads: number | null, kind: Row['kind'] = 'plugin'): Row {
-	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null, openIssues: null };
+	return { kind, name: id.toUpperCase(), id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null, openIssues: null, openPulls: null };
 }
 
 describe('parseList', () => {

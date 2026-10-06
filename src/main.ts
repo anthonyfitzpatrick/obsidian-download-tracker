@@ -88,6 +88,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 			withThemeDates: s.showFirstRelease || s.showLastUpdated,
 			withAllRepos: s.showAllRepos,
 			withIssues: s.showIssues,
+			withPulls: s.showPulls,
 		};
 	}
 

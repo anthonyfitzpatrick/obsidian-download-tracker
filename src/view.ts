@@ -16,7 +16,7 @@ import type DownloadTrackerPlugin from './main';
 
 export const VIEW_TYPE = 'download-tracker-dashboard';
 
-const NUMERIC = new Set(['Downloads', 'Change', 'Stars', 'Open issues']);
+const NUMERIC = new Set(['Downloads', 'Change', 'Stars', 'Open issues', 'Open pull requests']);
 const DATES = new Set(['Initial release', 'Last updated']);
 const VISIBILITY_LABELS = { public: 'Public', private: 'Private' };
 
@@ -99,8 +99,8 @@ export class DashboardView extends ItemView {
 			this.tile(tiles, formatCount(sumKnown(report.repos.map((r) => r.downloads))), `Other repositories (${report.repos.length})`);
 		}
 
-		this.table(root, 'Plugins', report.plugins, previous, 'No plugins from these accounts are in the community plugin list.');
-		this.table(root, 'Themes', report.themes, previous, 'No themes from these accounts are in the community theme list.');
+		this.table(root, 'Published Obsidian plugins', report.plugins, previous, 'No plugins from these accounts are in the community plugin list.');
+		this.table(root, 'Published Obsidian themes', report.themes, previous, 'No themes from these accounts are in the community theme list.');
 		if (report.repos.length > 0) {
 			this.table(root, 'Other repositories', report.repos, previous, '');
 			root.createEl('p', {
@@ -128,7 +128,8 @@ export class DashboardView extends ItemView {
 		parent.createEl('h4', { text: title });
 		const wrap = parent.createDiv({ cls: 'download-tracker-table-wrap' });
 		const table = wrap.createEl('table', { cls: 'download-tracker-table' });
-		const { showStars, showFirstRelease, showLastUpdated, showAllRepos, showIssues, linkNames } = this.plugin.settings;
+		const { showStars, showFirstRelease, showLastUpdated, showAllRepos, showIssues, showPulls, linkNames } =
+			this.plugin.settings;
 		const columns = [
 			'Type',
 			'Name',
@@ -139,6 +140,7 @@ export class DashboardView extends ItemView {
 			...(showAllRepos ? ['Visibility'] : []),
 			...(showStars ? ['Stars'] : []),
 			...(showIssues ? ['Open issues'] : []),
+			...(showPulls ? ['Open pull requests'] : []),
 			...(showFirstRelease ? ['Initial release'] : []),
 			...(showLastUpdated ? ['Last updated'] : []),
 		];
@@ -161,6 +163,7 @@ export class DashboardView extends ItemView {
 				...(showAllRepos ? [row.visibility ? VISIBILITY_LABELS[row.visibility] : 'n/a'] : []),
 				...(showStars ? [formatCount(row.stars)] : []),
 				...(showIssues ? [formatCount(row.openIssues)] : []),
+				...(showPulls ? [formatCount(row.openPulls)] : []),
 				...(showFirstRelease ? [this.plugin.displayDate(row.firstRelease)] : []),
 				...(showLastUpdated ? [this.plugin.displayDate(row.lastUpdated)] : []),
 			]);
@@ -189,6 +192,7 @@ export class DashboardView extends ItemView {
 			...(showAllRepos ? [''] : []),
 			...(showStars ? [formatCount(stars)] : []),
 			...(showIssues ? [formatCount(sumKnown(rows.map((r) => r.openIssues)))] : []),
+			...(showPulls ? [formatCount(sumKnown(rows.map((r) => r.openPulls)))] : []),
 		]);
 	}
 

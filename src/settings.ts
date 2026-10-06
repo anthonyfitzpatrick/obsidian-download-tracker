@@ -15,6 +15,7 @@ export interface DownloadTrackerSettings {
 	dateFormat: string;
 	showAllRepos: boolean;
 	showIssues: boolean;
+	showPulls: boolean;
 	linkNames: boolean;
 }
 
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	dateFormat: '',
 	showAllRepos: false,
 	showIssues: false,
+	showPulls: false,
 	linkNames: true,
 };
 
@@ -179,6 +181,19 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle.setValue(settings.showIssues).onChange(async (value) => {
 					settings.showIssues = value;
+					await this.plugin.saveSettings();
+					void this.plugin.refresh(false);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show open pull requests')
+			.setDesc(
+				'Add a column with the number of open pull requests in each repository. Repositories with open issues or pull requests add a GitHub request to each refresh. Private repositories need a token that can read their pull requests.',
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showPulls).onChange(async (value) => {
+					settings.showPulls = value;
 					await this.plugin.saveSettings();
 					void this.plugin.refresh(false);
 				}),

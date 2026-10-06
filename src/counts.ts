@@ -20,6 +20,7 @@ export interface Row {
 	lastUpdated: number | null;
 	visibility: Visibility | null;
 	openIssues: number | null;
+	openPulls: number | null;
 }
 
 export interface Snapshot {
