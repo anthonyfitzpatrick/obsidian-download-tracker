@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import {
+	KIND_LABELS,
 	Row,
 	SOURCE_LABELS,
 	Snapshot,
@@ -8,6 +9,7 @@ import {
 	formatDate,
 	formatDelta,
 	previousSnapshot,
+	sumKnown,
 	total,
 } from './counts';
 import type DownloadTrackerPlugin from './main';
@@ -87,15 +89,23 @@ export class DashboardView extends ItemView {
 		}
 
 		const previous = previousSnapshot(this.plugin.snapshots, report.fetchedAt);
-		const all = [...report.plugins, ...report.themes];
-
 		const tiles = root.createDiv({ cls: 'download-tracker-tiles' });
-		this.tile(tiles, formatCount(total(all)), 'Total downloads');
+		this.tile(tiles, formatCount(total([...report.plugins, ...report.themes])), 'Plugins and themes');
 		this.tile(tiles, formatCount(total(report.plugins)), `Plugins (${report.plugins.length})`);
 		this.tile(tiles, formatCount(total(report.themes)), `Themes (${report.themes.length})`);
+		if (report.repos.length > 0) {
+			this.tile(tiles, formatCount(sumKnown(report.repos.map((r) => r.downloads))), `Other repositories (${report.repos.length})`);
+		}
 
 		this.table(root, 'Plugins', report.plugins, previous, 'No plugins from these accounts are in the community plugin list.');
 		this.table(root, 'Themes', report.themes, previous, 'No themes from these accounts are in the community theme list.');
+		if (report.repos.length > 0) {
+			this.table(root, 'Other repositories', report.repos, previous, '');
+			root.createEl('p', {
+				text: 'Other repositories are counted by every file attached to their GitHub releases, so one person downloading three files counts three times. They are not in the plugins and themes total.',
+				cls: 'download-tracker-meta',
+			});
+		}
 
 		const meta = root.createEl('p', { cls: 'download-tracker-meta' });
 		meta.setText(
@@ -127,7 +137,7 @@ export class DashboardView extends ItemView {
 		}
 		for (const row of rows) {
 			this.cells(body.createEl('tr'), columns, [
-				row.kind === 'plugin' ? 'Plugin' : 'Theme',
+				KIND_LABELS[row.kind],
 				row.name,
 				row.kind === 'plugin' ? row.id : row.repo,
 				formatCount(row.downloads),
@@ -143,8 +153,9 @@ export class DashboardView extends ItemView {
 			}
 		}
 		const sub = body.createEl('tr', { cls: 'download-tracker-subtotal' });
-		const starTotal = rows.reduce((sum, r) => sum + (r.stars ?? 0), 0);
-		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(total(rows)), '', '', formatCount(starTotal)]);
+		const downloads = sumKnown(rows.map((r) => r.downloads));
+		const stars = sumKnown(rows.map((r) => r.stars));
+		this.cells(sub, columns, ['', 'Subtotal', '', formatCount(downloads), '', '', formatCount(stars)]);
 	}
 
 	// Values beyond the visible columns are dropped, so callers can always pass the stars value.

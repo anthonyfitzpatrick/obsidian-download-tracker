@@ -11,6 +11,9 @@ import {
 	sortRows,
 	statsFileVersions,
 	sumManifestDownloads,
+	sumReleaseFiles,
+	sumKnown,
+	obsidianTotal,
 	summaryTable,
 	toCount,
 	toStars,
@@ -51,6 +54,20 @@ describe('sumManifestDownloads', () => {
 		expect(result.versions).toEqual([
 			{ version: '1.10.0', downloads: 7 },
 			{ version: '1.2.0', downloads: 5 },
+		]);
+	});
+});
+
+describe('sumReleaseFiles', () => {
+	it('sums every attached file and keeps releases without files at zero', () => {
+		const result = sumReleaseFiles([
+			{ tag_name: 'v2.0.0', assets: [{ name: 'app.zip', download_count: 5 }, { name: 'app.tar.gz', download_count: 3 }] },
+			{ tag_name: 'v1.0.0' },
+		]);
+		expect(result.total).toBe(8);
+		expect(result.versions).toEqual([
+			{ version: 'v2.0.0', downloads: 8 },
+			{ version: 'v1.0.0', downloads: 0 },
 		]);
 	});
 });
@@ -97,6 +114,15 @@ describe('totals and sorting', () => {
 		expect(rows.map((r) => r.id)).toEqual(['c', 'b', 'a']);
 		expect(total(rows)).toBe(14);
 	});
+
+	it('sums known values and gives null when none are known', () => {
+		expect(sumKnown([3, null, 4])).toBe(7);
+		expect(sumKnown([null, null])).toBeNull();
+	});
+
+	it('leaves other repositories out of the plugins and themes total', () => {
+		expect(obsidianTotal([row('a', 5), row('t', 2, 'theme'), row('r', 100, 'repo')])).toBe(7);
+	});
 });
 
 describe('snapshots and deltas', () => {
@@ -119,6 +145,13 @@ describe('snapshots and deltas', () => {
 		expect(delta(row('a', null), second)).toBeNull();
 		expect(delta(row('a', 18), undefined)).toBeNull();
 	});
+
+	it('gives no change when the count source differs from the snapshot', () => {
+		const fallback: Row = { ...row('a', 12), source: 'file' };
+		expect(delta(fallback, second)).toBeNull();
+		const { sources: _ignored, ...older } = second;
+		expect(delta(fallback, older)).toBe(-3);
+	});
 });
 
 describe('markdown output', () => {
@@ -133,20 +166,20 @@ describe('markdown output', () => {
 				'| --- | --- | ---: | ---: | --- |',
 				'| Plugin | A | 1,234 | +1,224 | GitHub live |',
 				'| Theme | T\\|X | n/a | n/a | GitHub live |',
-				'| | Total | 1,234 | | |',
+				'| | Plugins and themes | 1,234 | | |',
 			].join('\n'),
 		);
 	});
 
 	it('writes one history row per snapshot in date order', () => {
-		const later = makeSnapshot([row('a', 12), row('b', 3)], new Date(2026, 9, 7, 9, 0).getTime());
+		const later = makeSnapshot([row('a', 12), row('b', 3), row('r', 50, 'repo')], new Date(2026, 9, 7, 9, 0).getTime());
 		const earlier = makeSnapshot([row('a', 10)], new Date(2026, 9, 6, 9, 0).getTime());
 		expect(historyTable([later, earlier])).toBe(
 			[
-				'| Date | A | B | Total |',
-				'| --- | ---: | ---: | ---: |',
-				'| 2026-10-06 09:00 | 10 |  | 10 |',
-				'| 2026-10-07 09:00 | 12 | 3 | 15 |',
+				'| Date | A | B | R | Plugins and themes |',
+				'| --- | ---: | ---: | ---: | ---: |',
+				'| 2026-10-06 09:00 | 10 |  |  | 10 |',
+				'| 2026-10-07 09:00 | 12 | 3 | 50 | 15 |',
 			].join('\n'),
 		);
 	});

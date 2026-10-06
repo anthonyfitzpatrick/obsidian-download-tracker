@@ -55,7 +55,7 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Extra repositories')
-			.setDesc('Other repositories to count, one owner/repo per line. Use this for projects published from another account.')
+			.setDesc('Other repositories to count, one owner/repo per line. Plugins and themes in Obsidian\'s community lists are counted as usual. Any other repository is listed under other repositories and counted by the downloads of every file attached to its releases.')
 			.addTextArea((text) =>
 				text
 					.setPlaceholder('Owner/repo')

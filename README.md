@@ -8,6 +8,7 @@ An Obsidian plugin that shows the download counts of the community plugins and t
 - Shows each item's download count, the change since your last snapshot and where the count came from, with subtotals and a total.
 - Optionally lists the downloads of each released version of a plugin.
 - Optionally shows the number of GitHub stars on each repository.
+- Counts the release downloads of other GitHub repositories you name, in a separate table.
 - Saves snapshots of the counts in the plugin's data and writes the snapshot history to a note as a Markdown table.
 - Copies a plain-text summary to the clipboard, or inserts a summary table into the current note.
 
@@ -32,20 +33,21 @@ Set your GitHub username under **Settings → Download Tracker**, then open the 
 - **Plugins.** The plugin sums the downloads of the `manifest.json` file attached to each GitHub release of the plugin. Obsidian downloads that file once for every install and every update, and builds its own count the same way, so this matches the number in Obsidian's plugin browser but is current. These counts are labelled "GitHub live".
 - **Fallback.** If GitHub refuses a request because of the rate limit or a rejected token, the plugin uses Obsidian's stats file instead and says so on the dashboard. Obsidian updates the stats file on its own schedule, and it can be days behind. These counts are labelled "Obsidian stats file".
 - **Themes.** Theme counts come from Obsidian's theme statistics. If they cannot be loaded, themes show "n/a" and the rest of the refresh still completes.
+- **Other repositories.** An extra repository that isn't in Obsidian's community lists is shown under "Other repositories". Its count is the sum of the downloads of every file attached to its GitHub releases, labelled "GitHub release files". One person downloading three files counts three times, GitHub doesn't count its automatic source-code archives, and installs through package managers aren't included. These counts are kept out of the plugins and themes total.
 
 Limits:
 
 - A download is an install or an update, not a person. Updating a plugin, or installing it in a second vault, counts again.
 - A plugin or theme appears only once it is in Obsidian's community lists. Projects still in review are not shown.
-- The change column compares with the most recent snapshot saved before the counts were fetched. If one snapshot used live counts and the next used the stats file, a change can look smaller than it is, or negative.
-- Without a token, GitHub allows 60 requests an hour from your network. Each plugin takes at least one request per refresh, and showing stars adds one request per plugin and theme.
+- The change column compares with the most recent snapshot saved before the counts were fetched. If the count's source differs from the snapshot's, for example a live count saved and a stats-file count now, the change shows n/a.
+- Without a token, GitHub allows 60 requests an hour from your network. Each plugin and other repository takes at least one request per refresh, and showing stars adds one request per repository.
 
 ## Network use
 
 The plugin connects to these hosts only when you open the dashboard, run a command that needs counts, or turn on refresh at startup:
 
 - `raw.githubusercontent.com`: Obsidian's community plugin list, theme list and plugin stats file, from the `obsidianmd/obsidian-releases` repository.
-- `api.github.com`: the release list of each of your plugins, to read live download counts, and, if you turn on stars, each plugin and theme repository's star count. If you set a token, it is sent only to this host.
+- `api.github.com`: the release list of each of your plugins and other repositories, to read download counts, and, if you turn on stars, each repository's star count. If you set a token, it is sent only to this host.
 - `releases.obsidian.md`: Obsidian's theme download statistics.
 
 ## Privacy

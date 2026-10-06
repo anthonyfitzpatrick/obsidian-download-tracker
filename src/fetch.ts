@@ -6,6 +6,7 @@ import {
 	sortRows,
 	statsFileVersions,
 	sumManifestDownloads,
+	sumReleaseFiles,
 	toCount,
 	toStars,
 } from './counts';
@@ -19,6 +20,7 @@ export interface Report {
 	query: string;
 	plugins: Row[];
 	themes: Row[];
+	repos: Row[];
 	notices: string[];
 }
 
@@ -47,12 +49,12 @@ async function getJson(url: string, token = ''): Promise<unknown> {
 	return res.json as unknown;
 }
 
-async function githubLive(repo: string, token: string): Promise<ReturnType<typeof sumManifestDownloads>> {
+async function githubReleases(repo: string, token: string): Promise<GitHubRelease[]> {
 	const releases: GitHubRelease[] = [];
 	for (let page = 1; ; page++) {
 		const batch = (await getJson(`${GITHUB_API}repos/${repo}/releases?per_page=100&page=${page}`, token)) as GitHubRelease[];
 		releases.push(...batch);
-		if (batch.length < 100) return sumManifestDownloads(releases);
+		if (batch.length < 100) return releases;
 	}
 }
 
@@ -68,7 +70,7 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 }
 
 export function queryKey(usernames: string[], extraRepos: string[], withStars: boolean): string {
-	return [...usernames, '|', ...extraRepos, withStars ? '|stars' : ''].map((s) => s.toLowerCase()).join(',');
+	return ['v2', ...usernames, '|', ...extraRepos, withStars ? '|stars' : ''].map((s) => s.toLowerCase()).join(',');
 }
 
 export async function loadReport(
@@ -104,10 +106,11 @@ export async function loadReport(
 
 	const listed = new Set([...myPlugins, ...myThemes].map((e) => e.repo.toLowerCase()));
 	const missing = extraRepos.filter((r) => !listed.has(r.toLowerCase()));
-	if (missing.length > 0) notices.push(`Not found in the community lists: ${missing.join(', ')}.`);
 
 	// After the first refusal, later GitHub calls are skipped: they would be refused too.
 	let githubBlocked: 'rate' | 'token' | null = null;
+	const notFound = new Set<string>();
+	let currentRepo = '';
 	const fromGitHub = async <T>(call: () => Promise<T>): Promise<T | null> => {
 		if (githubBlocked) return null;
 		try {
@@ -116,6 +119,7 @@ export async function loadReport(
 			if (!(e instanceof HttpError)) throw e;
 			if (e.status === 403 || e.status === 429) githubBlocked = 'rate';
 			else if (e.status === 401) githubBlocked = 'token';
+			else if (e.status === 404) notFound.add(currentRepo);
 			return null;
 		}
 	};
@@ -131,7 +135,8 @@ export async function loadReport(
 		const id = p.id ?? p.repo;
 		const stats = pluginStats[id];
 		const fileCount = stats ? toCount(stats) : null;
-		const live = await fromGitHub(() => githubLive(p.repo, token));
+		currentRepo = p.repo;
+		const live = await fromGitHub(async () => sumManifestDownloads(await githubReleases(p.repo, token)));
 		plugins.push({
 			kind: 'plugin',
 			name: p.name,
@@ -152,6 +157,7 @@ export async function loadReport(
 		for (const [i, t] of myThemes.entries()) {
 			if (withStars) onProgress(`Checking stars for theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
+			currentRepo = t.repo;
 			themes.push({
 				kind: 'theme',
 				name: t.name,
@@ -165,7 +171,26 @@ export async function loadReport(
 		}
 	}
 
-	const starsNote = withStars ? ' Stars that could not be loaded show as n/a.' : '';
+	const repos: Row[] = [];
+	for (const [i, repo] of missing.entries()) {
+		onProgress(`Checking repository ${i + 1} of ${missing.length}: ${repo}...`);
+		currentRepo = repo;
+		const counted = await fromGitHub(async () => sumReleaseFiles(await githubReleases(repo, token)));
+		repos.push({
+			kind: 'repo',
+			name: repo.slice(repo.indexOf('/') + 1),
+			id: repo,
+			repo,
+			downloads: counted ? counted.total : null,
+			source: counted ? 'assets' : 'na',
+			versions: counted ? counted.versions : [],
+			stars: notFound.has(repo) ? null : await stars(repo),
+		});
+	}
+	if (notFound.size > 0) notices.push(`Not found on GitHub, or private: ${[...notFound].join(', ')}.`);
+
+	const starsNote =
+		withStars || repos.length > 0 ? ' Stars and other repositories that could not be loaded show as n/a.' : '';
 	if (githubBlocked === 'rate') {
 		notices.push(
 			(token
@@ -184,6 +209,7 @@ export async function loadReport(
 		query: queryKey(usernames, extraRepos, withStars),
 		plugins: sortRows(plugins),
 		themes: sortRows(themes),
+		repos: sortRows(repos),
 		notices,
 	};
 }
