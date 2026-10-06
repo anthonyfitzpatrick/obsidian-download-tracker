@@ -60,10 +60,8 @@ The dashboard has two tabs. **Tables** shows the tables described above. **Chart
 
 Above the charts is a filter row. Choose **All** (plugins and themes), **Plugins**, **Themes** or **Other repositories**, and type in **Filter by name** to narrow it further. The filter applies to every chart. Each chart has a **How to read this** note you can open. Hover over a bar, column or date, or move to it with the Tab key, to see exact values.
 
-- **Downloads by project.** One line per project, so you can see how they compare and grow. Each project keeps its colour whatever the filter. Hover over a name in the legend to pick out its line. With more than eight projects, the smallest share one grey "Other" line. With **Other repositories** chosen, it shows release-file downloads.
-- **Total downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line.
-
-In both line charts each point is a saved snapshot, and the last point is today's counts, so the lines start once you have saved one snapshot.
+- **Downloads by project.** Cumulative stacked columns from your earliest release to today, one column per week (per month or quarter for longer spans), one colour per project. Each release's downloads are added at the date it was published, so a column shows the downloads of every release published by then, counted up to today. It doesn't show when people downloaded. Hover over a column for each project's share. Themes aren't included, because Obsidian publishes one total per theme rather than a count per release. Each project keeps its colour whatever the filter; past eight projects, the smallest share one grey "Other".
+- **Total downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line. Each point is a saved snapshot and the last point is today's counts, so the line starts once you have saved one snapshot.
 - **Since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar left of the centre line means the count went down.
 - **Downloads by version.** One small column chart per project with more than one version, oldest on the left. Each has its own scale.
 

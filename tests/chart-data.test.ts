@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, projectSeries, versionsOldestFirst } from '../src/chart-data';
+import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, periodEnds, cumulativeStacks, projectSlots, versionsOldestFirst } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
 function row(kind: Row['kind'], id: string, name: string, downloads: number | null): Row {
@@ -68,31 +68,57 @@ describe('historySeries with current counts', () => {
 	});
 });
 
-describe('projectSeries', () => {
-	const current = {
-		time: 3000,
-		rows: [row('plugin', 'a', 'Alpha', 20), row('theme', 't', 'Tango', 6), row('repo', 'r', 'Romeo', 70)],
-	};
+describe('projectSlots', () => {
+	const rows = [row('plugin', 'a', 'Alpha', 20), row('theme', 't', 'Tango', 60), row('repo', 'r', 'Romeo', 70)];
 
-	it('draws one line per project with snapshots and current counts', () => {
-		const series = projectSeries(snaps, { kind: 'all', query: '' }, current);
-		expect(series.map((s) => [s.label, s.cls, s.points.map((p) => p.value)])).toEqual([
-			['Alpha', 'is-slot-1', [10, 12, 20]],
-			['Tango', 'is-slot-2', [4, 5, 6]],
+	it('colours plugins and themes together, largest first, whatever the filter', () => {
+		const all = projectSlots(rows, 'all');
+		expect([...all.entries()]).toEqual([
+			['theme:t', 'is-slot-1'],
+			['plugin:a', 'is-slot-2'],
 		]);
+		expect(projectSlots(rows, 'plugin').get('plugin:a')).toBe('is-slot-2');
 	});
 
-	it('keeps each colour when the filter narrows the view', () => {
-		const themes = projectSeries(snaps, { kind: 'theme', query: '' }, current);
-		expect(themes.map((s) => [s.label, s.cls])).toEqual([['Tango', 'is-slot-2']]);
-	});
-
-	it('folds projects past eight into one Other line', () => {
+	it('folds projects past eight into Other', () => {
 		const many = Array.from({ length: 10 }, (_, i) => row('plugin', `p${i}`, `P${i}`, 100 - i));
-		const series = projectSeries([], { kind: 'all', query: '' }, { time: 1, rows: many });
-		expect(series.length).toBe(8);
-		expect(series[7]?.label).toBe('Other (3)');
-		expect(series[7]?.points[0]?.value).toBe(93 + 92 + 91);
+		const slots = projectSlots(many, 'all');
+		expect(slots.get('plugin:p6')).toBe('is-slot-7');
+		expect(slots.get('plugin:p7')).toBe('is-total');
+	});
+});
+
+describe('periodEnds', () => {
+	it('uses weeks for short spans and ends at now', () => {
+		const first = new Date(2026, 6, 4, 21, 0).getTime();
+		const now = new Date(2026, 6, 20, 12, 0).getTime();
+		const { ends, period } = periodEnds(first, now);
+		expect(period).toBe('week');
+		expect(ends).toEqual([new Date(2026, 6, 11).getTime(), new Date(2026, 6, 18).getTime(), now]);
+	});
+
+	it('uses calendar months for longer spans', () => {
+		const { ends, period } = periodEnds(new Date(2025, 8, 15).getTime(), new Date(2026, 2, 10).getTime());
+		expect(period).toBe('month');
+		expect(ends.slice(0, 2)).toEqual([new Date(2025, 9, 1).getTime(), new Date(2025, 10, 1).getTime()]);
+	});
+});
+
+describe('cumulativeStacks', () => {
+	it('adds each release at its publish date and keeps a running total', () => {
+		const a = row('plugin', 'a', 'Alpha', 30);
+		a.versions = [
+			{ version: '1.0.0', downloads: 10, published: new Date(2026, 6, 5).getTime() },
+			{ version: '1.1.0', downloads: 20, published: new Date(2026, 6, 15).getTime() },
+		];
+		const now = new Date(2026, 6, 20).getTime();
+		const result = cumulativeStacks([a], projectSlots([a], 'all'), now);
+		expect(result?.start).toBe(new Date(2026, 6, 5).getTime());
+		expect(result?.stacks).toEqual([{ id: 'plugin:a', label: 'Alpha', cls: 'is-slot-1', values: [10, 30, 30] }]);
+	});
+
+	it('returns nothing when no release has a date', () => {
+		expect(cumulativeStacks([row('theme', 't', 'Tango', 5)], new Map(), 1)).toBeNull();
 	});
 });
 

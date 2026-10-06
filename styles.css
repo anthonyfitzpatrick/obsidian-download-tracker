@@ -680,3 +680,78 @@
 .download-tracker-line.has-highlight .download-tracker-line-stroke.is-highlighted {
 	stroke-width: 3px;
 }
+
+/* Cumulative stacked columns: one column per period, projects stacked with a 2px gap, largest at the base. */
+.download-tracker-stack {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-rows: 11rem auto;
+	column-gap: var(--size-4-2);
+	padding-top: 1.2rem;
+}
+
+.download-tracker-stack-plot {
+	position: relative;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.download-tracker-stack-columns {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+}
+
+.download-tracker-stack-slot {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	align-items: center;
+	flex: 1 1 0;
+	height: 100%;
+	min-width: 0;
+	border-radius: var(--radius-s) var(--radius-s) 0 0;
+}
+
+.download-tracker-stack-slot:hover,
+.download-tracker-stack-slot:focus-visible {
+	background-color: var(--background-modifier-hover);
+	outline: none;
+}
+
+.download-tracker-stack-column {
+	display: flex;
+	flex-direction: column-reverse;
+	gap: 2px;
+	width: 100%;
+	max-width: 24px;
+	overflow: hidden;
+	border-radius: 4px 4px 0 0;
+}
+
+.download-tracker-stack-part {
+	flex: 1 1 0;
+	min-height: 1px;
+}
+
+.download-tracker-stack-part.is-slot-1 { background-color: var(--dt-slot-1); }
+.download-tracker-stack-part.is-slot-2 { background-color: var(--dt-slot-2); }
+.download-tracker-stack-part.is-slot-3 { background-color: var(--dt-slot-3); }
+.download-tracker-stack-part.is-slot-4 { background-color: var(--dt-slot-4); }
+.download-tracker-stack-part.is-slot-5 { background-color: var(--dt-slot-5); }
+.download-tracker-stack-part.is-slot-6 { background-color: var(--dt-slot-6); }
+.download-tracker-stack-part.is-slot-7 { background-color: var(--dt-slot-7); }
+.download-tracker-stack-part.is-slot-8 { background-color: var(--dt-slot-8); }
+.download-tracker-stack-part.is-total { background-color: var(--dt-total); }
+
+.download-tracker-stack-unit {
+	color: var(--text-faint);
+}
+
+.download-tracker-chart-note {
+	margin: var(--size-4-2) 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}

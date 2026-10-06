@@ -5,6 +5,7 @@ export type Visibility = 'public' | 'private';
 export interface VersionCount {
 	version: string;
 	downloads: number;
+	published?: number | null;
 }
 
 export interface Row {
@@ -60,6 +61,11 @@ export function isOwned(repo: string, usernames: string[], extraRepos: string[])
 	);
 }
 
+function publishedAt(release: GitHubRelease): number | null {
+	const time = release.published_at ? Date.parse(release.published_at) : NaN;
+	return isNaN(time) ? null : time;
+}
+
 // Obsidian counts a download each time a release's manifest.json is fetched,
 // so summing that asset across releases reproduces its number.
 export function sumManifestDownloads(releases: GitHubRelease[]): { total: number; versions: VersionCount[] } {
@@ -69,7 +75,7 @@ export function sumManifestDownloads(releases: GitHubRelease[]): { total: number
 		const manifest = (release.assets ?? []).find((a) => a.name === 'manifest.json');
 		if (!manifest) continue;
 		total += manifest.download_count;
-		versions.push({ version: release.tag_name, downloads: manifest.download_count });
+		versions.push({ version: release.tag_name, downloads: manifest.download_count, published: publishedAt(release) });
 	}
 	return { total, versions: sortVersions(versions) };
 }
@@ -82,7 +88,7 @@ export function sumReleaseFiles(releases: GitHubRelease[]): { total: number; ver
 	for (const release of releases) {
 		const downloads = (release.assets ?? []).reduce((sum, a) => sum + a.download_count, 0);
 		total += downloads;
-		versions.push({ version: release.tag_name, downloads });
+		versions.push({ version: release.tag_name, downloads, published: publishedAt(release) });
 	}
 	return { total, versions: sortVersions(versions) };
 }

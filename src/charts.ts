@@ -5,7 +5,9 @@ import {
 	KindFilter,
 	Series,
 	historySeries,
-	projectSeries,
+	cumulativeStacks,
+	projectSlots,
+	Stacks,
 	kindMatches,
 	nameMatches,
 	niceTicks,
@@ -101,19 +103,23 @@ function drawCharts(
 		empty(parent, 'Nothing matches this filter.');
 		return;
 	}
-	const needHistory = 'Save a snapshot to start the lines. Each snapshot adds a point, and today’s counts are the last one.';
+	const needHistory = 'Save a snapshot to start this line. Each snapshot adds a point, and today’s counts are the last one.';
 
 	const projects = card(
 		parent,
-		filter.kind === 'repo' ? 'Release-file downloads over time' : 'Downloads by project',
-		filter.kind === 'repo'
-			? 'One line per repository. Every file attached to a GitHub release counts, so these are not comparable with plugin and theme downloads.'
-			: 'One line per project. Hover over a name in the legend to pick out its line, or over a date to see every value.',
+		'Downloads by project',
+		'Cumulative, from the earliest publication to today. Each release’s downloads are added at the date it was published, so a column shows the downloads of every release out by then, not downloads made by then. Hover over a column for each project’s share.',
 	);
-	const perProject = projectSeries(snapshots, filter, current);
-	if (perProject.length === 0) empty(projects, 'No download counts are available.');
-	else if (snapshots.length === 0) empty(projects, needHistory);
-	else lines(projects, perProject, date);
+	const slots = projectSlots(all, filter.kind);
+	const stacks = cumulativeStacks(rows, slots, current.time);
+	if (!stacks) empty(projects, 'None of these projects has dated releases with downloads.');
+	else stackedColumns(projects, stacks, date);
+	if (rows.some((r) => r.kind === 'theme')) {
+		projects.createEl('p', {
+			text: 'Themes aren’t in this chart: Obsidian publishes one total per theme, not a count per release.',
+			cls: 'download-tracker-chart-note',
+		});
+	}
 
 	const history = card(parent, 'Total downloads over time', 'Each point is a saved snapshot; the last is today’s counts.');
 	const series = historySeries(snapshots, filter, current);
@@ -191,6 +197,54 @@ function focusable(el: HTMLElement, tip: string): void {
 	el.tabIndex = 0;
 	el.setAttr('aria-label', tip);
 	setTooltip(el, tip);
+}
+
+function stackedColumns(parent: HTMLElement, data: Stacks, date: DateFormatter): void {
+	const totals = data.ends.map((_, i) => data.stacks.reduce((sum, s) => sum + (s.values[i] ?? 0), 0));
+	const ticks = niceTicks(0, Math.max(...totals, 1));
+	const high = ticks[ticks.length - 1] ?? 1;
+	const pct = (v: number) => (v / high) * 100;
+
+	if (data.stacks.length > 1) legend(parent, data.stacks, 'box');
+	const frame = parent.createDiv({ cls: 'download-tracker-stack' });
+	const yAxis = frame.createDiv({ cls: 'download-tracker-line-y' });
+	const plot = frame.createDiv({ cls: 'download-tracker-stack-plot' });
+	for (const tick of ticks) {
+		yAxis.createSpan({ text: formatCount(tick) }).style.top = `${100 - pct(tick)}%`;
+		plot.createDiv({ cls: 'download-tracker-gridline' }).style.top = `${100 - pct(tick)}%`;
+	}
+
+	const label = (i: number) => {
+		const end = data.ends[i] ?? 0;
+		// Columns before the last cover up to their boundary, which is the start of the next period.
+		return i === data.ends.length - 1 ? `${date(end)} (today)` : `Before ${date(end)}`;
+	};
+	const columns = plot.createDiv({ cls: 'download-tracker-stack-columns' });
+	data.ends.forEach((_, i) => {
+		const total = totals[i] ?? 0;
+		const slot = columns.createDiv({ cls: 'download-tracker-stack-slot' });
+		const parts = data.stacks
+			.map((s) => ({ label: s.label, value: s.values[i] ?? 0 }))
+			.filter((p) => p.value > 0)
+			.sort((a, b) => b.value - a.value)
+			.map((p) => `${p.label} ${formatCount(p.value)}`);
+		focusable(slot, `${label(i)}: ${formatCount(total)} downloads${parts.length > 1 ? ` (${parts.join(', ')})` : ''}`);
+		const column = slot.createDiv({ cls: 'download-tracker-stack-column' });
+		column.style.height = `${pct(total)}%`;
+		// Largest project at the base, so the biggest share sits on the baseline.
+		for (const s of data.stacks) {
+			const value = s.values[i] ?? 0;
+			if (value <= 0 || total <= 0) continue;
+			column.createDiv({ cls: `download-tracker-stack-part ${s.cls}` }).style.flexGrow = String(value);
+		}
+		if (i === data.ends.length - 1) slot.createSpan({ text: formatCount(total), cls: 'download-tracker-column-value' });
+	});
+
+	const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
+	const unit = { week: 'Weekly', month: 'Monthly', quarter: 'Quarterly' }[data.period];
+	xAxis.createSpan({ text: date(data.start) });
+	xAxis.createSpan({ text: `${unit} columns`, cls: 'download-tracker-stack-unit' });
+	xAxis.createSpan({ text: date(data.ends[data.ends.length - 1] ?? 0) });
 }
 
 function changeBars(parent: HTMLElement, changes: { row: Row; change: number }[]): void {

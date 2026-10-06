@@ -51,14 +51,14 @@ describe('isOwned', () => {
 describe('sumManifestDownloads', () => {
 	it('sums only manifest.json assets and lists versions newest first', () => {
 		const result = sumManifestDownloads([
-			{ tag_name: '1.2.0', assets: [{ name: 'manifest.json', download_count: 5 }, { name: 'main.js', download_count: 99 }] },
+			{ tag_name: '1.2.0', published_at: '2026-07-04T21:32:24Z', assets: [{ name: 'manifest.json', download_count: 5 }, { name: 'main.js', download_count: 99 }] },
 			{ tag_name: '1.10.0', assets: [{ name: 'manifest.json', download_count: 7 }] },
 			{ tag_name: '0.9.0' },
 		]);
 		expect(result.total).toBe(12);
 		expect(result.versions).toEqual([
-			{ version: '1.10.0', downloads: 7 },
-			{ version: '1.2.0', downloads: 5 },
+			{ version: '1.10.0', downloads: 7, published: null },
+			{ version: '1.2.0', downloads: 5, published: Date.parse('2026-07-04T21:32:24Z') },
 		]);
 	});
 });
@@ -71,8 +71,8 @@ describe('sumReleaseFiles', () => {
 		]);
 		expect(result.total).toBe(8);
 		expect(result.versions).toEqual([
-			{ version: 'v2.0.0', downloads: 8 },
-			{ version: 'v1.0.0', downloads: 0 },
+			{ version: 'v2.0.0', downloads: 8, published: null },
+			{ version: 'v1.0.0', downloads: 0, published: null },
 		]);
 	});
 });

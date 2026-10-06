@@ -85,38 +85,83 @@ export function historySeries(snapshots: Snapshot[], filter: ChartFilter, curren
 
 // Colours follow the project, not the filter: slots are handed out over the whole
 // group (plugins and themes together, or other repositories), largest first, so
-// narrowing the view never repaints a line. Past eight, the smallest share one
-// grey "Other" line, because a ninth colour can't be told apart.
-export function projectSeries(snapshots: Snapshot[], filter: ChartFilter, current: Current): Series[] {
-	const group = current.rows
-		.filter((r) => (filter.kind === 'repo' ? r.kind === 'repo' : r.kind !== 'repo'))
+// narrowing the view never repaints a project. Past eight, the smallest share one
+// grey "Other", because a ninth colour can't be told apart.
+export function projectSlots(rows: Row[], kind: KindFilter): Map<string, string> {
+	const group = rows
+		.filter((r) => (kind === 'repo' ? r.kind === 'repo' : r.kind !== 'repo'))
 		.sort((a, b) => (b.downloads ?? -1) - (a.downloads ?? -1) || a.name.localeCompare(b.name));
-	const slot = new Map(group.map((r, i) => [rowKey(r), i < SLOTS - (group.length > SLOTS ? 1 : 0) ? i + 1 : 0]));
-	const shown = group.filter((r) => kindMatches(r.kind, filter.kind) && nameMatches(r.name, filter.query));
-	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
+	const coloured = group.length > SLOTS ? SLOTS - 1 : SLOTS;
+	return new Map(group.map((r, i) => [rowKey(r), i < coloured ? `is-slot-${i + 1}` : 'is-total']));
+}
 
-	const pointsFor = (keys: string[]): Point[] => {
-		const points: Point[] = [];
-		for (const s of ordered) {
-			const values = keys.map((k) => s.counts[k]).filter((v): v is number => v !== undefined);
-			if (values.length > 0) points.push({ time: s.fetchedAt, value: values.reduce((a, b) => a + b, 0) });
+export type Period = 'week' | 'month' | 'quarter';
+
+export interface Stack {
+	id: string;
+	label: string;
+	cls: string;
+	values: number[];
+}
+
+export interface Stacks {
+	start: number;
+	ends: number[];
+	period: Period;
+	stacks: Stack[];
+}
+
+// Column boundaries from the earliest publication to now: weekly for up to four
+// months, monthly for up to two years, quarterly beyond. The last column ends now.
+export function periodEnds(first: number, now: number): { ends: number[]; period: Period } {
+	const days = (now - first) / 86_400_000;
+	const period: Period = days <= 120 ? 'week' : days <= 730 ? 'month' : 'quarter';
+	const ends: number[] = [];
+	const start = new Date(first);
+	if (period === 'week') {
+		const base = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+		for (let t = base + 7 * 86_400_000; t < now; t += 7 * 86_400_000) ends.push(t);
+	} else {
+		const step = period === 'month' ? 1 : 3;
+		const firstMonth = period === 'month' ? start.getMonth() : start.getMonth() - (start.getMonth() % 3);
+		for (let m = firstMonth + step; ; m += step) {
+			const t = new Date(start.getFullYear(), m, 1).getTime();
+			if (t >= now) break;
+			ends.push(t);
 		}
-		const now = shown.filter((r) => keys.includes(rowKey(r)) && r.downloads !== null);
-		if (now.length > 0) points.push({ time: current.time, value: now.reduce((a, r) => a + (r.downloads ?? 0), 0) });
-		return points;
-	};
+	}
+	ends.push(now);
+	return { ends, period };
+}
 
-	const series: Series[] = [];
-	const others: string[] = [];
-	for (const r of shown) {
-		const n = slot.get(rowKey(r)) ?? 0;
-		if (n === 0) others.push(rowKey(r));
-		else series.push({ id: rowKey(r), label: r.name, cls: `is-slot-${n}`, points: pointsFor([rowKey(r)]) });
+// A release's downloads are placed at its publish date, so each column is the
+// downloads of every release published before its end, counted up to today.
+export function cumulativeStacks(rows: Row[], slots: Map<string, string>, now: number): Stacks | null {
+	const dated = rows.filter((r) => r.versions.some((v) => typeof v.published === 'number'));
+	const times = dated.flatMap((r) => r.versions.map((v) => v.published).filter((t): t is number => typeof t === 'number'));
+	if (times.length === 0) return null;
+	const start = Math.min(...times);
+	const { ends, period } = periodEnds(start, now);
+	const valuesFor = (projects: Row[]) =>
+		ends.map((end, i) =>
+			projects.reduce(
+				(sum, r) =>
+					sum +
+					r.versions
+						.filter((v) => typeof v.published === 'number' && (i === ends.length - 1 ? v.published <= end : v.published < end))
+						.reduce((a, v) => a + v.downloads, 0),
+				0,
+			),
+		);
+	const stacks: Stack[] = [];
+	const others: Row[] = [];
+	for (const r of dated) {
+		const cls = slots.get(rowKey(r)) ?? 'is-total';
+		if (cls === 'is-total') others.push(r);
+		else stacks.push({ id: rowKey(r), label: r.name, cls, values: valuesFor([r]) });
 	}
-	if (others.length > 0) {
-		series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: pointsFor(others) });
-	}
-	return series.filter((s) => s.points.length > 0);
+	if (others.length > 0) stacks.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', values: valuesFor(others) });
+	return { start, ends, period, stacks };
 }
 
 // Round tick steps (1, 2 or 5 times a power of ten) so axis labels read cleanly.

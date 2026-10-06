@@ -98,7 +98,7 @@ interface RepoInfo {
 
 export function queryKey(o: ReportOptions): string {
 	return [
-		'v4',
+		'v5',
 		...o.usernames,
 		'|',
 		...o.extraRepos,
