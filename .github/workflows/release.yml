@@ -1,0 +1,60 @@
+name: Release
+
+# Pushing a version tag (for example 0.1.0) builds the plugin and creates a draft
+# release with main.js, manifest.json and styles.css. Publish the draft by hand.
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+  id-token: write       # signs the build attestation
+  attestations: write   # stores it, so users can check the files were built from this repo
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Check the tag matches manifest.json and versions.json
+        run: |
+          manifest=$(node -p "require('./manifest.json').version")
+          if [ "$manifest" != "$GITHUB_REF_NAME" ]; then
+            echo "manifest.json is $manifest but the tag is $GITHUB_REF_NAME" >&2; exit 1
+          fi
+          node -e "if (!require('./versions.json')[process.argv[1]]) { console.error('versions.json has no entry for ' + process.argv[1]); process.exit(1) }" "$GITHUB_REF_NAME"
+
+      - run: npm run lint
+      - run: npm test
+
+      - name: Build twice and check the output is identical
+        run: |
+          npm run build
+          sha256sum main.js > first.sha256
+          rm main.js
+          npm run build
+          sha256sum --check first.sha256
+          rm first.sha256
+
+      - name: Attest the release files
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" main.js manifest.json styles.css \
+            --title "$GITHUB_REF_NAME" --draft --generate-notes
