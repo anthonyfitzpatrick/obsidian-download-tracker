@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, periodEnds, cumulativeStacks, projectSlots, versionsOldestFirst } from '../src/chart-data';
+import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, projectSlots, releaseSeries, versionsOldestFirst } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
 function row(kind: Row['kind'], id: string, name: string, downloads: number | null): Row {
@@ -88,37 +88,28 @@ describe('projectSlots', () => {
 	});
 });
 
-describe('periodEnds', () => {
-	it('uses weeks for short spans and ends at now', () => {
-		const first = new Date(2026, 6, 4, 21, 0).getTime();
-		const now = new Date(2026, 6, 20, 12, 0).getTime();
-		const { ends, period } = periodEnds(first, now);
-		expect(period).toBe('week');
-		expect(ends).toEqual([new Date(2026, 6, 11).getTime(), new Date(2026, 6, 18).getTime(), now]);
-	});
-
-	it('uses calendar months for longer spans', () => {
-		const { ends, period } = periodEnds(new Date(2025, 8, 15).getTime(), new Date(2026, 2, 10).getTime());
-		expect(period).toBe('month');
-		expect(ends.slice(0, 2)).toEqual([new Date(2025, 9, 1).getTime(), new Date(2025, 10, 1).getTime()]);
-	});
-});
-
-describe('cumulativeStacks', () => {
-	it('adds each release at its publish date and keeps a running total', () => {
+describe('releaseSeries', () => {
+	it('gives each project a running total that steps up at each release and ends today', () => {
 		const a = row('plugin', 'a', 'Alpha', 30);
 		a.versions = [
-			{ version: '1.0.0', downloads: 10, published: new Date(2026, 6, 5).getTime() },
-			{ version: '1.1.0', downloads: 20, published: new Date(2026, 6, 15).getTime() },
+			{ version: '1.1.0', downloads: 20, published: 2000 },
+			{ version: '1.0.0', downloads: 10, published: 1000 },
+			{ version: '1.2.0', downloads: 0, published: null },
 		];
-		const now = new Date(2026, 6, 20).getTime();
-		const result = cumulativeStacks([a], projectSlots([a], 'all'), now);
-		expect(result?.start).toBe(new Date(2026, 6, 5).getTime());
-		expect(result?.stacks).toEqual([{ id: 'plugin:a', label: 'Alpha', cls: 'is-slot-1', values: [10, 30, 30] }]);
-	});
-
-	it('returns nothing when no release has a date', () => {
-		expect(cumulativeStacks([row('theme', 't', 'Tango', 5)], new Map(), 1)).toBeNull();
+		const t = row('theme', 't', 'Tango', 5);
+		const series = releaseSeries([a, t], projectSlots([a, t], 'all'), 5000);
+		expect(series).toEqual([
+			{
+				id: 'plugin:a',
+				label: 'Alpha',
+				cls: 'is-slot-1',
+				points: [
+					{ time: 1000, value: 10 },
+					{ time: 2000, value: 30 },
+					{ time: 5000, value: 30 },
+				],
+			},
+		]);
 	});
 });
 
