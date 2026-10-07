@@ -175,6 +175,22 @@ describe('gainSeries', () => {
 	});
 });
 
+describe('gains for a newly released plugin', () => {
+	it('counts the first period from zero before release', () => {
+		const day = (d: number) => new Date(2026, 8, d).getTime();
+		const ends = [day(25), new Date(2026, 9, 2).getTime(), new Date(2026, 9, 7).getTime()];
+		const p = row('plugin', 'd', 'Discogs', 21);
+		p.versions = [{ version: '1.0.0', downloads: 21, published: day(29) }];
+		const figures: FiguresCache = { [String(ends[1])]: { ids: ['d'], counts: { d: 11 } } };
+		const cumulative = periodSeries([p], projectSlots([p], 'all'), ends, figures, [], true);
+		expect(gainSeries(cumulative, ends)[0]?.points).toEqual([{ time: ends[1], value: 11 }]);
+		const earlier = [new Date(2026, 8, 18).getTime(), ...ends];
+		const fromJuly = periodSeries([p], projectSlots([p], 'all'), earlier, figures, [], true);
+		expect(gainSeries(fromJuly, earlier)[0]?.points).toEqual([{ time: ends[1], value: 11 }]);
+		expect(periodSeries([p], projectSlots([p], 'all'), ends, figures, [])[0]?.points.map((x) => x.value)).toEqual([11, 21]);
+	});
+});
+
 describe('releasesIn', () => {
 	it('lists published releases inside the range, oldest first, in the project colour', () => {
 		const a = row('plugin', 'a', 'Alpha', 30);

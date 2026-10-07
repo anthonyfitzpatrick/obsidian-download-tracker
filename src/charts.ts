@@ -161,7 +161,8 @@ function drawCharts(
 		'One line per project: the downloads gained in each complete period, so you can see whether a project is speeding up or slowing down. The period still running is left out, and so are estimated totals, so themes appear as your snapshots build up. Ticks under the axis mark releases; hover over one to see which.',
 	);
 	const completed: PeriodAxis = { ...axis, ends: axis.ends.slice(0, -1), zero: true, live: false };
-	const perPeriod = gainSeries(perProject, axis.ends);
+	// Counted from zero before release, so a project's first period has a gain too.
+	const perPeriod = gainSeries(periodSeries(rows, slots, axis.ends, past.figures, snapshots, true), axis.ends);
 	if (perPeriod.length === 0) empty(gains, 'This needs two complete periods with recorded totals. Try a longer range.');
 	else lines(gains, perPeriod, date, completed, releases.filter((r) => r.time <= (completed.ends[completed.ends.length - 1] ?? 0)));
 

@@ -191,14 +191,22 @@ function knownAt(
 }
 
 // A point only where every project in the group is known, so a sum never leaves
-// anything out; a line breaks where it can't be drawn truthfully.
-function groupLine(group: Row[], ends: number[], figures: FiguresCache, snapshots: Snapshot[]): Point[] {
+// anything out; a line breaks where it can't be drawn truthfully. Periods before a
+// project was out are left off its line, unless `fromZero` asks for them: gains need
+// that zero as the starting point of the first period.
+function groupLine(
+	group: Row[],
+	ends: number[],
+	figures: FiguresCache,
+	snapshots: Snapshot[],
+	fromZero = false,
+): Point[] {
 	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
 	const points: Point[] = [];
 	const now = ends[ends.length - 1] ?? 0;
 	ends.forEach((end, i) => {
 		const known = group.map((r) => knownAt(r, end, now, i === ends.length - 1, figures, ordered));
-		if (known.some((k) => k === null) || !known.some((k) => k?.started)) return;
+		if (known.some((k) => k === null) || (!fromZero && !known.some((k) => k?.started))) return;
 		const point: Point = { time: end, value: known.reduce((sum, k) => sum + (k?.value ?? 0), 0) };
 		if (known.some((k) => k?.estimated)) point.estimated = true;
 		points.push(point);
@@ -213,16 +221,22 @@ export function periodSeries(
 	ends: number[],
 	figures: FiguresCache,
 	snapshots: Snapshot[],
+	fromZero = false,
 ): Series[] {
 	const series: Series[] = [];
 	const others: Row[] = [];
 	for (const r of rows) {
 		const cls = slots.get(rowKey(r)) ?? 'is-total';
 		if (cls === 'is-total') others.push(r);
-		else series.push({ id: rowKey(r), label: r.name, cls, points: groupLine([r], ends, figures, snapshots) });
+		else series.push({ id: rowKey(r), label: r.name, cls, points: groupLine([r], ends, figures, snapshots, fromZero) });
 	}
 	if (others.length > 0) {
-		series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: groupLine(others, ends, figures, snapshots) });
+		series.push({
+			id: 'other',
+			label: `Other (${others.length})`,
+			cls: 'is-total',
+			points: groupLine(others, ends, figures, snapshots, fromZero),
+		});
 	}
 	return series.filter((s) => s.points.length > 0);
 }
@@ -270,6 +284,8 @@ export function gainSeries(series: Series[], ends: number[]): Series[] {
 			s.points.forEach((p, i) => {
 				const prev = s.points[i - 1];
 				if (!prev || p.time === lastEnd || p.estimated || prev.estimated) return;
+				// Zero to zero only happens before a project is out; it isn't a gain to plot.
+				if (prev.value === 0 && p.value === 0) return;
 				if ((index.get(p.time) ?? 0) - (index.get(prev.time) ?? 0) !== 1) return;
 				points.push({ time: p.time, value: p.value - prev.value });
 			});
