@@ -8,6 +8,7 @@ import {
 	makeSnapshot,
 	parseList,
 	previousSnapshot,
+	hasSnapshotOn,
 	sortRows,
 	statsFileVersions,
 	sumManifestDownloads,
@@ -194,6 +195,12 @@ describe('snapshots and deltas', () => {
 
 	it('leaves out rows without a count', () => {
 		expect(first.counts).toEqual({ 'plugin:a': 10 });
+	});
+
+	it('knows whether a snapshot was saved on a given day', () => {
+		const morning = makeSnapshot([row('a', 1)], new Date(2026, 9, 7, 8, 0).getTime());
+		expect(hasSnapshotOn([morning], new Date(2026, 9, 7, 23, 0).getTime())).toBe(true);
+		expect(hasSnapshotOn([morning], new Date(2026, 9, 8, 0, 5).getTime())).toBe(false);
 	});
 
 	it('uses the latest snapshot taken before the counts were fetched', () => {

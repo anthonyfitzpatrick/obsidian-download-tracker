@@ -224,6 +224,11 @@ export function makeSnapshot(rows: Row[], fetchedAt: number): Snapshot {
 	return { fetchedAt, counts, names, sources };
 }
 
+export function hasSnapshotOn(snapshots: Snapshot[], time: number): boolean {
+	const day = new Date(time).toDateString();
+	return snapshots.some((s) => new Date(s.fetchedAt).toDateString() === day);
+}
+
 // Compares with the latest snapshot taken from earlier counts, so saving a
 // snapshot of the counts on screen does not reset the change column to zero.
 export function previousSnapshot(snapshots: Snapshot[], fetchedAt: number): Snapshot | undefined {

@@ -73,7 +73,7 @@ Select **Save snapshot** on the dashboard, or run **Download Tracker: Save snaps
 
 After that, the Change column compares the counts with that snapshot. If a count now comes from a different source than in the snapshot, for example because GitHub's rate limit forced the stats file, the change shows n/a. Saving the same counts twice is refused, so refresh first if you want a new snapshot.
 
-Snapshots are stored in the plugin's `data.json`. Nothing is saved automatically.
+Snapshots are stored in the plugin's `data.json`. To save one automatically, turn on **Save a snapshot each day**: the first time counts are fetched each day, they are saved as that day's snapshot. Obsidian publishes no download history for themes or other repositories, so these snapshots are what their lines in the Downloads by project chart are drawn from. It only runs while Obsidian is open, so also turning on **Refresh on startup** catches every day you use Obsidian.
 
 ## Export history
 

@@ -13,7 +13,7 @@ An Obsidian plugin that shows the download counts of the community plugins and t
 - Optionally lists every repository you own, public and private, and tags each one with its visibility.
 - Optionally shows the number of open issues and open pull requests in each repository.
 - Links each name to its repository on GitHub. This can be turned off.
-- Saves snapshots of the counts in the plugin's data and writes the snapshot history to a note as a Markdown table.
+- Saves snapshots of the counts in the plugin's data, by command or automatically once a day, and writes the snapshot history to a note as a Markdown table.
 - Draws charts on a separate tab, filtered by type and name: downloads by project with one line per project from the earliest release, using Obsidian's published daily figures for plugins, total downloads over time (plugins, themes and both combined), change since the last snapshot, and downloads by version. The charts are plain HTML and SVG drawn by the plugin; no other plugin or chart library is needed.
 - Copies a plain-text summary to the clipboard, or inserts a summary table into the current note.
 

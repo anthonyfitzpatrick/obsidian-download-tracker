@@ -3,6 +3,7 @@ import {
 	Row,
 	Snapshot,
 	formatDate,
+	hasSnapshotOn,
 	historyTable,
 	makeSnapshot,
 	parseList,
@@ -209,6 +210,10 @@ export default class DownloadTrackerPlugin extends Plugin {
 				this.progress = message;
 				this.renderViews();
 			});
+			const fetched = this.storedReport;
+			if (this.settings.dailySnapshot && !hasSnapshotOn(this.snapshots, fetched.fetchedAt)) {
+				this.addSnapshot(fetched);
+			}
 			await this.saveStoredData();
 		} catch {
 			const report = this.report;
@@ -239,16 +244,21 @@ export default class DownloadTrackerPlugin extends Plugin {
 			new Notice('These counts are already in a snapshot. Refresh to fetch new counts first.');
 			return;
 		}
-		const snapshot = makeSnapshot(this.rows(report), report.fetchedAt);
-		const size = Object.keys(snapshot.counts).length;
+		const size = this.addSnapshot(report);
 		if (size === 0) {
 			new Notice('There are no counts to save.');
 			return;
 		}
-		this.snapshots.push(snapshot);
 		await this.saveStoredData();
 		this.renderViews();
 		new Notice(`Snapshot saved with ${size} counts from ${this.displayDate(report.fetchedAt, true)}.`);
+	}
+
+	private addSnapshot(report: Report): number {
+		const snapshot = makeSnapshot(this.rows(report), report.fetchedAt);
+		const size = Object.keys(snapshot.counts).length;
+		if (size > 0) this.snapshots.push(snapshot);
+		return size;
 	}
 
 	async exportHistory(): Promise<void> {

@@ -16,6 +16,7 @@ export interface DownloadTrackerSettings {
 	showAllRepos: boolean;
 	showIssues: boolean;
 	showPulls: boolean;
+	dailySnapshot: boolean;
 	linkNames: boolean;
 }
 
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	showAllRepos: false,
 	showIssues: false,
 	showPulls: false,
+	dailySnapshot: false,
 	linkNames: true,
 };
 
@@ -98,6 +100,18 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle.setValue(settings.refreshOnStartup).onChange(async (value) => {
 					settings.refreshOnStartup = value;
+					await this.plugin.saveSettings();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Save a snapshot each day')
+			.setDesc(
+				'The first time counts are fetched each day, save them as a snapshot. Themes and other repositories have no published history, so this is how their lines in the charts grow. It only runs while Obsidian is open; turn on refresh on startup to catch each day you use Obsidian.',
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.dailySnapshot).onChange(async (value) => {
+					settings.dailySnapshot = value;
 					await this.plugin.saveSettings();
 				}),
 			);
