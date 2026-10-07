@@ -1,7 +1,6 @@
 import { DropdownComponent, moment, setTooltip } from 'obsidian';
 import {
 	ChartFilter,
-	Current,
 	FiguresCache,
 	KindFilter,
 	RANGES,
@@ -26,7 +25,7 @@ import type { Report } from './fetch';
 
 type DateFormatter = (time: number | null, withTime?: boolean) => string;
 
-export interface History {
+interface History {
 	figures: FiguresCache;
 	progress: string;
 	ensure: (ends: number[], pluginIds: string[]) => void;
@@ -38,7 +37,6 @@ const KIND_OPTIONS: { kind: KindFilter; label: string }[] = [
 	{ kind: 'theme', label: 'Themes' },
 	{ kind: 'repo', label: 'Other repositories' },
 ];
-
 
 export function renderCharts(
 	parent: HTMLElement,
@@ -74,7 +72,7 @@ export function renderCharts(
 
 	const draw = () => {
 		body.empty();
-		drawCharts(body, all, snapshots, date, filter, { time: report.fetchedAt, rows: all }, history);
+		drawCharts(body, all, snapshots, date, filter, report.fetchedAt, history);
 	};
 
 	const chips: { kind: KindFilter; el: HTMLElement }[] = [];
@@ -118,7 +116,7 @@ function drawCharts(
 	snapshots: Snapshot[],
 	date: DateFormatter,
 	filter: ChartFilter,
-	current: Current,
+	now: number,
 	past: History,
 ): void {
 	const rows = all.filter((r) => kindMatches(r.kind, filter.kind) && nameMatches(r.name, filter.query));
@@ -135,15 +133,15 @@ function drawCharts(
 		empty(parent, 'There is no history to draw yet. Save a snapshot to start.');
 		return;
 	}
-	const axis: PeriodAxis = { ...rangeEnds(filter.range, startAt, current.time), zero: filter.range === 'all', live: true };
+	const axis: PeriodAxis = { ...rangeEnds(filter.range, startAt, now), zero: filter.range === 'all', live: true };
 	const slots = projectSlots(all, filter.kind);
-	const releases = releasesIn(rows, slots, axis.start, current.time);
+	const releases = releasesIn(rows, slots, axis.start, now);
 	past.ensure(
 		axis.ends.slice(0, -1),
 		group.filter((r) => r.kind === 'plugin').map((r) => r.id),
 	);
 	const sources =
-		'Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, today’s live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots; before the first one, they are estimated as a straight rise from zero at release and drawn dashed.';
+		"Plugin points are Obsidian's published daily figures, which run a few days behind, so a line can rise at the last point, today's live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots; before the first one, they are estimated as a straight rise from zero at release and drawn dashed.";
 
 	const projects = card(
 		parent,
@@ -200,16 +198,14 @@ function empty(parent: HTMLElement, text: string): void {
 function legend(
 	parent: HTMLElement,
 	items: { id: string; label: string; cls: string }[],
-	key: 'box' | 'line',
-	frame?: HTMLElement,
-	marks?: Map<string, Element[]>,
+	frame: HTMLElement,
+	marks: Map<string, Element[]>,
 ): void {
 	const el = parent.createDiv({ cls: 'download-tracker-legend' });
 	for (const item of items) {
 		const entry = el.createSpan({ cls: 'download-tracker-legend-item' });
-		entry.createSpan({ cls: `download-tracker-swatch ${item.cls} is-${key}` });
+		entry.createSpan({ cls: `download-tracker-swatch ${item.cls}` });
 		entry.createSpan({ text: item.label });
-		if (!frame || !marks) continue;
 		// Picking out one line fades the others, so it can be followed through crossings.
 		entry.tabIndex = 0;
 		const on = () => {
@@ -243,42 +239,40 @@ interface PeriodAxis {
 	zero: boolean;
 }
 
-// Without periods, x is proportional to time. With periods, the points are evenly
-// spaced, one per period, and every period is labelled where there is room.
-function lines(parent: HTMLElement, series: Series[], date: DateFormatter, periods?: PeriodAxis, releases: Release[] = []): void {
-	const times = periods ?? { ends: [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b) };
-	const all = times.ends;
+// Positions are percentages handed to the stylesheet as custom properties.
+function place(el: HTMLElement, left: number | null, top: number | null): void {
+	const props: Record<string, string> = {};
+	if (left !== null) props['--dt-left'] = `${left}%`;
+	if (top !== null) props['--dt-top'] = `${top}%`;
+	el.setCssProps(props);
+}
+
+// One point per period, evenly spaced, with every period labelled where there is room.
+function lines(parent: HTMLElement, series: Series[], date: DateFormatter, periods: PeriodAxis, releases: Release[] = []): void {
+	const all = periods.ends;
 	const values = series.flatMap((s) => s.points.map((p) => p.value));
-	const ticks = niceTicks(periods && !periods.zero ? Math.min(...values) : Math.min(0, ...values), Math.max(...values));
+	const ticks = niceTicks(periods.zero ? Math.min(0, ...values) : Math.min(...values), Math.max(...values));
 	const low = ticks[0] ?? 0;
 	const high = ticks[ticks.length - 1] ?? 1;
-	const first = all[0] ?? 0;
-	const lastTime = all[all.length - 1] ?? first;
-	const span = Math.max(lastTime - first, 1);
+	const lastTime = all[all.length - 1] ?? 0;
 	const index = new Map(all.map((t, i) => [t, i]));
-	const x = periods
-		? (t: number) => 3 + ((index.get(t) ?? 0) / Math.max(all.length - 1, 1)) * 94
-		: (t: number) => ((t - first) / span) * 100;
+	const x = (t: number) => 3 + ((index.get(t) ?? 0) / Math.max(all.length - 1, 1)) * 94;
 	const y = (v: number) => 100 - ((v - low) / (high - low || 1)) * 100;
+	const isToday = (i: number) => periods.live && i === all.length - 1;
+	const daily = periods.period === 'day' || periods.period === 'week';
 	// A period's end is the start of the next one, so it is named by its last day or month.
-	const pointLabel = (t: number, i: number) => {
-		if (!periods) return date(t, true);
-		if (periods.live && i === all.length - 1) return 'Today';
-		return periods.period === 'day' || periods.period === 'week' ? date(t - 1) : moment(t - 1).format('MMM YYYY');
-	};
+	const pointLabel = (t: number, i: number) =>
+		isToday(i) ? 'Today' : daily ? date(t - 1) : moment(t - 1).format('MMM YYYY');
 	// Axis labels are short so several fit; tooltips carry the full date.
-	const axisLabel = (t: number, i: number) => {
-		if (periods?.live && i === all.length - 1) return 'Today';
-		return moment(t - 1).format(periods?.period === 'day' || periods?.period === 'week' ? 'D MMM' : 'MMM YY');
-	};
+	const axisLabel = (t: number, i: number) => (isToday(i) ? 'Today' : moment(t - 1).format(daily ? 'D MMM' : 'MMM YY'));
 
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
 	const marks = new Map<string, Element[]>();
 	const yAxis = frame.createDiv({ cls: 'download-tracker-line-y' });
 	const plot = frame.createDiv({ cls: 'download-tracker-line-plot' });
 	for (const tick of ticks) {
-		yAxis.createSpan({ text: formatCount(tick) }).style.top = `${y(tick)}%`;
-		plot.createDiv({ cls: 'download-tracker-gridline' }).style.top = `${y(tick)}%`;
+		place(yAxis.createSpan({ text: formatCount(tick) }), null, y(tick));
+		place(plot.createDiv({ cls: 'download-tracker-gridline' }), null, y(tick));
 	}
 
 	const svg = plot.createSvg('svg', {
@@ -294,7 +288,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		for (const p of s.points) {
 			const current = segments[segments.length - 1];
 			const prev = current?.[current.length - 1];
-			const gap = periods && prev && (index.get(p.time) ?? 0) - (index.get(prev.time) ?? 0) > 1;
+			const gap = prev && (index.get(p.time) ?? 0) - (index.get(prev.time) ?? 0) > 1;
 			if (!current || gap) segments.push([p]);
 			else current.push(p);
 		}
@@ -302,7 +296,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 			const coords = segment.map((p) => `${x(p.time)},${y(p.value)}`);
 			// A wash under one line helps; under several lines the washes stack into noise.
 			if (series.length === 1) {
-				const left = x(segment[0]?.time ?? first);
+				const left = x(segment[0]?.time ?? 0);
 				const right = x(segment[segment.length - 1]?.time ?? lastTime);
 				own.push(
 					svg.createSvg('polygon', {
@@ -338,8 +332,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		}
 		for (const p of s.points) {
 			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}${p.estimated ? ' is-estimated' : ''}` });
-			dot.style.left = `${x(p.time)}%`;
-			dot.style.top = `${y(p.value)}%`;
+			place(dot, x(p.time), y(p.value));
 			own.push(dot);
 		}
 		marks.set(s.id, own);
@@ -348,7 +341,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	// One hit column per date, so the pointer only has to find the date, not a line.
 	all.forEach((t, i) => {
 		const hit = plot.createDiv({ cls: 'download-tracker-line-hit' });
-		hit.style.left = `${x(t)}%`;
+		place(hit, x(t), null);
 		const parts = series
 			.map((s) => ({ label: s.label, point: s.points.find((p) => p.time === t) }))
 			.filter((p): p is { label: string; point: Point } => p.point !== undefined)
@@ -362,38 +355,30 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	const placed: number[] = [];
 	const lasts = series
 		.map((s) => s.points[s.points.length - 1])
-		.filter((p): p is { time: number; value: number } => p !== undefined && p.time === lastTime)
+		.filter((p): p is Point => p !== undefined && p.time === lastTime)
 		.sort((a, b) => b.value - a.value);
 	for (const last of lasts) {
 		const top = y(last.value);
 		if (placed.some((p) => Math.abs(p - top) < 9)) continue;
 		placed.push(top);
-		endLabels.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${top}%`;
+		place(endLabels.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }), null, top);
 	}
 
-	if (periods && releases.length > 0) markers(frame, releases, periods, x, date, marks);
+	if (releases.length > 0) markers(frame, releases, periods, x, date, marks);
 
-	if (periods) {
-		// Label every period that fits: up to ten on a wide pane, three on a narrow one.
-		const xAxis = frame.createDiv({ cls: 'download-tracker-line-x is-periods' });
-		const wide = Math.ceil(all.length / 10);
-		const narrow = Math.ceil(all.length / 3);
-		all.forEach((t, i) => {
-			const lastOne = i === all.length - 1;
-			const showWide = lastOne || (i % wide === 0 && all.length - 1 - i >= wide / 2);
-			if (!showWide) return;
-			const showNarrow = lastOne || (i % narrow === 0 && all.length - 1 - i >= narrow / 2);
-			const label = xAxis.createSpan({ text: axisLabel(t, i), cls: showNarrow ? '' : 'is-wide-only' });
-			label.style.left = `${x(t)}%`;
-		});
-	} else {
-		const sameDay = date(first) === date(lastTime);
-		const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
-		xAxis.createSpan({ text: date(first, sameDay) });
-		xAxis.createSpan({ text: date(lastTime, sameDay) });
-	}
+	// Label every period that fits: up to ten on a wide pane, three on a narrow one.
+	const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
+	const wide = Math.ceil(all.length / 10);
+	const narrow = Math.ceil(all.length / 3);
+	all.forEach((t, i) => {
+		const lastOne = i === all.length - 1;
+		const showWide = lastOne || (i % wide === 0 && all.length - 1 - i >= wide / 2);
+		if (!showWide) return;
+		const showNarrow = lastOne || (i % narrow === 0 && all.length - 1 - i >= narrow / 2);
+		place(xAxis.createSpan({ text: axisLabel(t, i), cls: showNarrow ? '' : 'is-wide-only' }), x(t), null);
+	});
 
-	if (series.length > 1) legend(parent, series, 'box', frame, marks);
+	if (series.length > 1) legend(parent, series, frame, marks);
 	if (series.some((s) => s.points.some((p) => p.estimated))) {
 		const key = parent.createDiv({ cls: 'download-tracker-legend download-tracker-estimate-key' });
 		const item = key.createSpan({ cls: 'download-tracker-legend-item' });
@@ -436,7 +421,7 @@ function markers(
 		const first = g.items[0];
 		const cls = ids.size === 1 && first ? first.cls : 'is-mixed';
 		const tick = strip.createDiv({ cls: `download-tracker-marker ${cls}` });
-		tick.style.left = `${g.left}%`;
+		place(tick, g.left, null);
 		focusable(tick, g.items.map((r) => `${r.project} ${r.version}, ${date(r.time)}`).join('; '));
 		for (const id of ids) marks.set(id, [...(marks.get(id) ?? []), tick]);
 	}

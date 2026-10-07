@@ -2,7 +2,7 @@
 
 ## Set up
 
-1. Open **Settings → Download Tracker**.
+1. Open **Settings → Download Tracker**. The settings are grouped under Accounts, Updates and snapshots, Dashboard, and Dates and export.
 2. Under **GitHub usernames**, enter the account your plugins and themes are published from. For several accounts, separate them with commas.
 3. Under **Extra repositories**, add any other repository as `owner/repo`, one per line. A plugin or theme published from another account is counted like your own. Any other repository appears in the other repositories table.
 4. Optional: add a GitHub token. Without one, GitHub allows 60 requests an hour, which is enough for a few refreshes of a handful of plugins.
@@ -24,7 +24,7 @@ The tiles at the top show the combined total for plugins and themes, and each gr
 | ID or repo | The plugin ID, or the theme's GitHub repository. |
 | Downloads | Installs and updates, not people. |
 | Change | The difference from your last snapshot, or n/a if there is none to compare with. |
-| Source | Where the count came from: GitHub live, GitHub release files, Obsidian stats file, or not available. |
+| Source | Where the count came from: GitHub live, GitHub release files, Obsidian stats file, or Not available. |
 | Stars | The repository's GitHub stars. Shown only when **Show stars** is on. |
 | Open issues | Open issues, not counting pull requests. Shown only when **Show open issues** is on. |
 | Open pull requests | Open pull requests. Shown only when **Show open pull requests** is on. |

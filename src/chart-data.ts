@@ -41,12 +41,8 @@ export interface Series {
 	points: Point[];
 }
 
-export interface Current {
-	time: number;
-	rows: Row[];
-}
-
 const SLOTS = 8;
+const DAY = 86_400_000;
 
 // Colours follow the project, not the filter: slots are handed out over the whole
 // group (plugins and themes together, or other repositories), largest first, so
@@ -65,13 +61,13 @@ export type Period = 'day' | 'week' | 'month' | 'quarter';
 // Period boundaries from the earliest publication to now: weekly for up to four
 // months, monthly for up to two years, quarterly beyond. The last period ends now.
 export function periodEnds(first: number, now: number): { ends: number[]; period: Period } {
-	const days = (now - first) / 86_400_000;
+	const days = (now - first) / DAY;
 	const period: Period = days <= 120 ? 'week' : days <= 730 ? 'month' : 'quarter';
 	const ends: number[] = [];
 	const start = new Date(first);
 	if (period === 'week') {
 		const base = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
-		for (let t = base + 7 * 86_400_000; t < now; t += 7 * 86_400_000) ends.push(t);
+		for (let t = base + 7 * DAY; t < now; t += 7 * DAY) ends.push(t);
 	} else {
 		const step = period === 'month' ? 1 : 3;
 		const firstMonth = period === 'month' ? start.getMonth() : start.getMonth() - (start.getMonth() % 3);
@@ -84,8 +80,6 @@ export function periodEnds(first: number, now: number): { ends: number[]; period
 	ends.push(now);
 	return { ends, period };
 }
-
-const DAY = 86_400_000;
 
 function dayEnds(start: number, now: number, step: number): number[] {
 	const s = new Date(start);
@@ -127,7 +121,7 @@ export function rangeEnds(range: Range, first: number, now: number): { start: nu
 
 // Obsidian's plugin stats file as it stood at a period end, keyed by that time.
 // `ids` records which plugins were looked up, so a plugin added later is fetched again.
-export interface DailyFigures {
+interface DailyFigures {
 	ids: string[];
 	counts: Record<string, number>;
 }

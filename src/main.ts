@@ -14,7 +14,7 @@ import {
 import { FiguresCache, missingFigures } from './chart-data';
 import { Report, ReportOptions, loadDailyFigures, loadReport, queryKey } from './fetch';
 import { DEFAULT_SETTINGS, DownloadTrackerSettingTab, DownloadTrackerSettings } from './settings';
-import { DashboardView, VIEW_TYPE } from './view';
+import { DashboardView, NO_ACCOUNTS, VIEW_TYPE } from './view';
 
 interface StoredData {
 	settings: DownloadTrackerSettings;
@@ -22,8 +22,6 @@ interface StoredData {
 	snapshots: Snapshot[];
 	figures: FiguresCache;
 }
-
-const NO_ACCOUNTS = "Add your GitHub username in this plugin's settings to see download counts.";
 
 export default class DownloadTrackerPlugin extends Plugin {
 	settings: DownloadTrackerSettings = { ...DEFAULT_SETTINGS };
@@ -99,6 +97,11 @@ export default class DownloadTrackerPlugin extends Plugin {
 		};
 	}
 
+	private token(): string {
+		const name = this.settings.tokenSecret;
+		return name ? (this.app.secretStorage.getSecret(name) ?? '') : '';
+	}
+
 	private query(): string {
 		return queryKey(this.options());
 	}
@@ -140,9 +143,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		if (this.figuresPending || this.figuresRefused || ids.length === 0) return;
 		const missing = missingFigures(ends, ids, this.figures);
 		if (missing.length === 0) return;
-		const token = this.settings.tokenSecret
-			? (this.app.secretStorage.getSecret(this.settings.tokenSecret) ?? '')
-			: '';
+		const token = this.token();
 		// Started on the next tick: progress re-renders the view, which calls this again,
 		// and by then figuresPending is set.
 		this.figuresPending = Promise.resolve()
@@ -203,10 +204,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		this.progress = 'Loading...';
 		this.renderViews();
 		try {
-			const token = this.settings.tokenSecret
-				? (this.app.secretStorage.getSecret(this.settings.tokenSecret) ?? '')
-				: '';
-			this.storedReport = await loadReport(this.options(), token, (message) => {
+			this.storedReport = await loadReport(this.options(), this.token(), (message) => {
 				this.progress = message;
 				this.renderViews();
 			});

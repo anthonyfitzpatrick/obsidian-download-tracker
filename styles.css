@@ -284,16 +284,10 @@
 	gap: var(--size-4-1);
 }
 
-.download-tracker-swatch.is-box {
+.download-tracker-swatch {
 	width: 10px;
 	height: 10px;
 	border-radius: 2px;
-}
-
-.download-tracker-swatch.is-line {
-	width: 14px;
-	height: 2px;
-	border-radius: 1px;
 }
 
 .download-tracker-swatch.is-plugin {
@@ -338,9 +332,11 @@
 	color: var(--text-normal);
 }
 
+/* Chart positions come from --dt-left and --dt-top, set per element by the plugin. */
 .download-tracker-line-y span,
 .download-tracker-line-ends span {
 	position: absolute;
+	top: var(--dt-top);
 	transform: translateY(-50%);
 	white-space: nowrap;
 }
@@ -360,6 +356,7 @@
 
 .download-tracker-gridline {
 	position: absolute;
+	top: var(--dt-top);
 	left: 0;
 	right: 0;
 	height: 1px;
@@ -400,6 +397,8 @@
 /* An 8px dot with a 2px ring in the background colour, so crossings stay legible. */
 .download-tracker-line-dot {
 	position: absolute;
+	left: var(--dt-left);
+	top: var(--dt-top);
 	width: 8px;
 	height: 8px;
 	transform: translate(-50%, -50%);
@@ -416,6 +415,7 @@
 /* A 24px column per snapshot: the pointer finds the date and the tooltip lists every line. */
 .download-tracker-line-hit {
 	position: absolute;
+	left: var(--dt-left);
 	top: 0;
 	bottom: 0;
 	width: 24px;
@@ -442,13 +442,21 @@
 	outline: none;
 }
 
+/* Period labels sit under their points; on a narrow pane only every few are kept. */
 .download-tracker-line-x {
 	grid-column: 2;
-	display: flex;
-	justify-content: space-between;
-	gap: var(--size-4-2);
+	position: relative;
+	height: 1.4em;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+}
+
+.download-tracker-line-x span {
+	position: absolute;
+	left: var(--dt-left);
+	top: 2px;
+	transform: translateX(-50%);
+	white-space: nowrap;
 }
 
 /* Narrow panes and phones: the line charts get shorter. */
@@ -486,6 +494,13 @@
 .download-tracker-swatch.is-slot-8 { background-color: var(--dt-slot-8); }
 
 .download-tracker-line-area.is-slot-1 { fill: var(--dt-slot-1); }
+.download-tracker-line-area.is-slot-2 { fill: var(--dt-slot-2); }
+.download-tracker-line-area.is-slot-3 { fill: var(--dt-slot-3); }
+.download-tracker-line-area.is-slot-4 { fill: var(--dt-slot-4); }
+.download-tracker-line-area.is-slot-5 { fill: var(--dt-slot-5); }
+.download-tracker-line-area.is-slot-6 { fill: var(--dt-slot-6); }
+.download-tracker-line-area.is-slot-7 { fill: var(--dt-slot-7); }
+.download-tracker-line-area.is-slot-8 { fill: var(--dt-slot-8); }
 
 .download-tracker-legend-item:focus-visible {
 	outline: 2px solid var(--interactive-accent);
@@ -512,20 +527,6 @@
 	font-size: var(--font-ui-small);
 }
 
-/* Period labels sit under their points; on a narrow pane only every few are kept. */
-.download-tracker-line-x.is-periods {
-	position: relative;
-	display: block;
-	height: 1.4em;
-}
-
-.download-tracker-line-x.is-periods span {
-	position: absolute;
-	top: 2px;
-	transform: translateX(-50%);
-	white-space: nowrap;
-}
-
 /* Legend below the chart, as chips. */
 .download-tracker-line + .download-tracker-legend {
 	justify-content: center;
@@ -533,12 +534,12 @@
 }
 
 @container (max-width: 30rem) {
-	.download-tracker-line-x.is-periods .is-wide-only {
+	.download-tracker-line-x .is-wide-only {
 		display: none;
 	}
 }
 
-/* Estimates: dashed lines and hollow dots, so they never pass for recorded numbers. */
+/* Estimates: dashed lines and faded points, so they never pass for recorded numbers. */
 .download-tracker-line-stroke.is-estimated {
 	stroke-dasharray: 4 4;
 }
@@ -567,6 +568,7 @@
 
 .download-tracker-marker {
 	position: absolute;
+	left: var(--dt-left);
 	top: 0;
 	width: 24px;
 	height: 12px;

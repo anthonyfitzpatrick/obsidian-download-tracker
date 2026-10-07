@@ -43,7 +43,7 @@ export const SOURCE_LABELS: Record<Source, string> = {
 	live: 'GitHub live',
 	assets: 'GitHub release files',
 	file: 'Obsidian stats file',
-	na: 'not available',
+	na: 'Not available',
 };
 
 export function parseList(text: string): string[] {
@@ -179,7 +179,7 @@ export function compareVersions(a: string, b: string): number {
 		if (y === '') return isNaN(Number(x)) ? -1 : 1;
 		const nx = Number(x);
 		const ny = Number(y);
-		const diff = x !== '' && y !== '' && !isNaN(nx) && !isNaN(ny) ? nx - ny : x.localeCompare(y);
+		const diff = !isNaN(nx) && !isNaN(ny) ? nx - ny : x.localeCompare(y);
 		if (diff !== 0) return diff;
 	}
 	return 0;

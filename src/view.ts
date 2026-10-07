@@ -17,6 +17,7 @@ import {
 import type DownloadTrackerPlugin from './main';
 
 export const VIEW_TYPE = 'download-tracker-dashboard';
+export const NO_ACCOUNTS = "Add your GitHub username in this plugin's settings to see download counts.";
 
 const NUMERIC = new Set(['Downloads', 'Change', 'Stars', 'Open issues', 'Open pull requests']);
 const DATES = new Set(['Initial release', 'Last updated']);
@@ -54,7 +55,7 @@ export class DashboardView extends ItemView {
 		return 'download';
 	}
 
-	// Saved with the workspace, so the dashboard reopens on the tab last used.
+	// Saved with the workspace, so the dashboard reopens on the tab and chart filters last used.
 	getState(): Record<string, unknown> {
 		const { kind, query, range } = this.chartFilter;
 		return { ...super.getState(), tab: this.tab, chartKind: kind, chartQuery: query, chartRange: range };
@@ -102,10 +103,7 @@ export class DashboardView extends ItemView {
 		}
 
 		if (!this.plugin.hasAccounts()) {
-			root.createEl('p', {
-				text: 'Add your GitHub username in this plugin\'s settings to see download counts.',
-				cls: 'download-tracker-empty',
-			});
+			root.createEl('p', { text: NO_ACCOUNTS, cls: 'download-tracker-empty' });
 			return;
 		}
 

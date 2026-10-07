@@ -17,7 +17,9 @@ import {
 	toVisibility,
 } from './counts';
 
-const RAW = 'https://raw.githubusercontent.com/obsidianmd/obsidian-releases/HEAD/';
+const RELEASES_REPO = 'obsidianmd/obsidian-releases';
+const PLUGIN_STATS = 'community-plugin-stats.json';
+const RAW = `https://raw.githubusercontent.com/${RELEASES_REPO}/HEAD/`;
 const GITHUB_API = 'https://api.github.com/';
 const THEME_STATS_URLS = ['https://releases.obsidian.md/stats/theme', RAW + 'community-css-theme-stats.json'];
 
@@ -58,15 +60,6 @@ async function getJson(url: string, token = ''): Promise<unknown> {
 	return res.json as unknown;
 }
 
-async function githubReleases(repo: string, token: string): Promise<GitHubRelease[]> {
-	const releases: GitHubRelease[] = [];
-	for (let page = 1; ; page++) {
-		const batch = (await getJson(`${GITHUB_API}repos/${repo}/releases?per_page=100&page=${page}`, token)) as GitHubRelease[];
-		releases.push(...batch);
-		if (batch.length < 100) return releases;
-	}
-}
-
 async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 	for (const url of THEME_STATS_URLS) {
 		try {
@@ -77,9 +70,6 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 	}
 	return null;
 }
-
-const RELEASES_REPO = 'obsidianmd/obsidian-releases';
-const PLUGIN_STATS = 'community-plugin-stats.json';
 
 // For each period end, finds the last commit of Obsidian's stats file before it and
 // reads that version. Results go into the cache as they arrive, so an interrupted
@@ -163,6 +153,10 @@ async function githubPages<T>(path: string, token: string): Promise<T[]> {
 	}
 }
 
+function githubReleases(repo: string, token: string): Promise<GitHubRelease[]> {
+	return githubPages<GitHubRelease>(`repos/${repo}/releases`, token);
+}
+
 export async function loadReport(
 	options: ReportOptions,
 	token: string,
@@ -174,7 +168,7 @@ export async function loadReport(
 	onProgress('Loading the community lists...');
 	const [pluginList, pluginStats, themeList] = await Promise.all([
 		getJson(RAW + 'community-plugins.json').then((d) => d as ListEntry[]),
-		getJson(RAW + 'community-plugin-stats.json').then(
+		getJson(RAW + PLUGIN_STATS).then(
 			(d) => d as StatsFile,
 			(): StatsFile => {
 				notices.push("Obsidian's plugin stats file could not be loaded.");
@@ -225,10 +219,9 @@ export async function loadReport(
 	};
 	const stars = async (repo: string) => (withStars ? toStars(await info(repo)) : null);
 	const visibility = async (repo: string) => (withAllRepos ? toVisibility(await info(repo)) : null);
-	// GitHub's open_issues_count includes pull requests, so issues are listed and
-	// counted only when that number isn't already zero.
-	// open_issues_count covers issues and pull requests together, so zero means
-	// neither list needs fetching.
+	// GitHub's open_issues_count covers issues and pull requests together, so the lists
+	// are fetched only when it isn't zero.
+
 	const noIssueAccess: string[] = [];
 	const noPullAccess: string[] = [];
 	const openIssues = async (repo: string): Promise<number | null> => {
@@ -368,7 +361,7 @@ export async function loadReport(
 		);
 	}
 
-	const starsNote =
+	const githubNote =
 		withStars || myThemes.length > 0 || withAllRepos || withIssues || withPulls || repos.length > 0
 			? ' Anything else that needed GitHub shows as n/a.'
 			: '';
@@ -377,11 +370,11 @@ export async function loadReport(
 			(token
 				? "GitHub's rate limit was reached, so some plugins and themes show Obsidian's stats file instead, which can lag. Try again later."
 				: "GitHub's rate limit was reached, so some plugins and themes show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.") +
-				starsNote,
+				githubNote,
 		);
 	} else if (githubBlocked === 'token') {
 		notices.push(
-			"GitHub rejected the token, so plugins and themes show Obsidian's stats file instead. Check the token in settings." + starsNote,
+			"GitHub rejected the token, so plugins and themes show Obsidian's stats file instead. Check the token in settings." + githubNote,
 		);
 	}
 

@@ -39,7 +39,7 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	linkNames: true,
 };
 
-// Fill these in before release. A link is shown only when its URL is set.
+// A link is shown only when its URL is set.
 const COFFEE_URL = 'https://buymeacoffee.com/wolf359pressab';
 const BOOK_URL = '';
 
@@ -55,6 +55,8 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		const settings = this.plugin.settings;
 		containerEl.empty();
+
+		new Setting(containerEl).setName('Accounts').setHeading();
 
 		new Setting(containerEl)
 			.setName('GitHub usernames')
@@ -94,6 +96,8 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 				}),
 			);
 
+		new Setting(containerEl).setName('Updates and snapshots').setHeading();
+
 		new Setting(containerEl)
 			.setName('Refresh on startup')
 			.setDesc('Fetch counts when Obsidian starts, unless the saved counts are newer than the cache duration.')
@@ -130,6 +134,8 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 				});
 			});
 
+		new Setting(containerEl).setName('Dashboard').setHeading();
+
 		new Setting(containerEl)
 			.setName('Show downloads by version')
 			.setDesc('List each released version under its plugin on the dashboard.')
@@ -137,7 +143,6 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 				toggle.setValue(settings.showVersions).onChange(async (value) => {
 					settings.showVersions = value;
 					await this.plugin.saveSettings();
-					this.plugin.renderViews();
 				}),
 			);
 
@@ -148,7 +153,7 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 				toggle.setValue(settings.showStars).onChange(async (value) => {
 					settings.showStars = value;
 					await this.plugin.saveSettings();
-					if (value) void this.plugin.refresh(false);
+					void this.plugin.refresh(false);
 				}),
 			);
 
@@ -222,6 +227,8 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}),
 			);
+
+		new Setting(containerEl).setName('Dates and export').setHeading();
 
 		const dateSetting = new Setting(containerEl).setName('Date format');
 		const describeDate = () => {
