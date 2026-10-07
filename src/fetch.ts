@@ -3,6 +3,7 @@ import {
 	GitHubRelease,
 	Row,
 	countIssues,
+	hasManifestAssets,
 	isOwned,
 	isRateLimited,
 	releaseDates,
@@ -80,7 +81,6 @@ export interface ReportOptions {
 	usernames: string[];
 	extraRepos: string[];
 	withStars: boolean;
-	withThemeDates: boolean;
 	withAllRepos: boolean;
 	withIssues: boolean;
 	withPulls: boolean;
@@ -98,12 +98,11 @@ interface RepoInfo {
 
 export function queryKey(o: ReportOptions): string {
 	return [
-		'v5',
+		'v6',
 		...o.usernames,
 		'|',
 		...o.extraRepos,
 		o.withStars ? '|stars' : '',
-		o.withThemeDates ? '|theme-dates' : '',
 		o.withAllRepos ? '|all-repos' : '',
 		o.withIssues ? '|issues' : '',
 		o.withPulls ? '|pulls' : '',
@@ -127,7 +126,7 @@ export async function loadReport(
 	token: string,
 	onProgress: (message: string) => void,
 ): Promise<Report> {
-	const { usernames, extraRepos, withStars, withThemeDates, withAllRepos, withIssues, withPulls } = options;
+	const { usernames, extraRepos, withStars, withAllRepos, withIssues, withPulls } = options;
 	const notices: string[] = [];
 
 	onProgress('Loading the community lists...');
@@ -264,20 +263,22 @@ export async function loadReport(
 	if (myThemes.length > 0) {
 		onProgress('Checking theme download counts...');
 		const themeStats = await firstThemeStats();
-		if (!themeStats) notices.push('Theme download counts could not be loaded, so they show as n/a.');
+		let missingStats = false;
 		for (const [i, t] of myThemes.entries()) {
 			onProgress(`Checking theme ${i + 1} of ${myThemes.length}: ${t.name}...`);
 			const count = themeStats ? toCount(themeStats[t.name]) : null;
-			const releases = withThemeDates ? await fromGitHub(() => githubReleases(t.repo, token)) : null;
+			const releases = await fromGitHub(() => githubReleases(t.repo, token));
+			const live = releases && hasManifestAssets(releases) ? sumManifestDownloads(releases) : null;
 			const dates = releases ? releaseDates(releases) : null;
+			if (!live && !themeStats) missingStats = true;
 			themes.push({
 				kind: 'theme',
 				name: t.name,
 				id: t.repo,
 				repo: t.repo,
-				downloads: count,
-				source: count !== null ? 'file' : 'na',
-				versions: [],
+				downloads: live ? live.total : count,
+				source: live ? 'live' : count !== null ? 'file' : 'na',
+				versions: live ? live.versions : [],
 				stars: await stars(t.repo),
 				firstRelease: dates ? dates.first : null,
 				lastUpdated: dates ? dates.last : null,
@@ -286,6 +287,7 @@ export async function loadReport(
 				openPulls: await openPulls(t.repo),
 			});
 		}
+		if (missingStats) notices.push('Theme download counts could not be loaded, so some show as n/a.');
 	}
 
 	const repos: Row[] = [];
@@ -325,19 +327,19 @@ export async function loadReport(
 	}
 
 	const starsNote =
-		withStars || withThemeDates || withAllRepos || withIssues || withPulls || repos.length > 0
+		withStars || myThemes.length > 0 || withAllRepos || withIssues || withPulls || repos.length > 0
 			? ' Anything else that needed GitHub shows as n/a.'
 			: '';
 	if (githubBlocked === 'rate') {
 		notices.push(
 			(token
-				? "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Try again later."
-				: "GitHub's rate limit was reached, so some plugins show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.") +
+				? "GitHub's rate limit was reached, so some plugins and themes show Obsidian's stats file instead, which can lag. Try again later."
+				: "GitHub's rate limit was reached, so some plugins and themes show Obsidian's stats file instead, which can lag. Add a GitHub token in settings or try again later.") +
 				starsNote,
 		);
 	} else if (githubBlocked === 'token') {
 		notices.push(
-			"GitHub rejected the token, so plugins show Obsidian's stats file instead. Check the token in settings." + starsNote,
+			"GitHub rejected the token, so plugins and themes show Obsidian's stats file instead. Check the token in settings." + starsNote,
 		);
 	}
 

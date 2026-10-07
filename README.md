@@ -37,7 +37,7 @@ Set your GitHub username under **Settings → Download Tracker**, then open the 
 
 - **Plugins.** The plugin sums the downloads of the `manifest.json` file attached to each GitHub release of the plugin. Obsidian downloads that file once for every install and every update, and builds its own count the same way, so this matches the number in Obsidian's plugin browser but is current. These counts are labelled "GitHub live".
 - **Fallback.** If GitHub refuses a request because of the rate limit or a rejected token, the plugin uses Obsidian's stats file instead and says so on the dashboard. Obsidian updates the stats file on its own schedule, and it can be days behind. These counts are labelled "Obsidian stats file".
-- **Themes.** Theme counts come from Obsidian's theme statistics. If they cannot be loaded, themes show "n/a" and the rest of the refresh still completes.
+- **Themes.** A theme released on GitHub with a `manifest.json` attached to each release is counted the same way as a plugin, labelled "GitHub live". Older themes that install straight from the repository use Obsidian's theme statistics, labelled "Obsidian stats file", which can lag. If neither can be loaded, the theme shows "n/a" and the rest of the refresh still completes.
 - **All repositories and visibility.** With this setting on, every repository owned by your GitHub usernames is listed, except forks, and every row is tagged Public or Private. Plugins and themes in Obsidian's directory are always public. Private repositories appear only when the GitHub token belongs to that account and can read them, for example a fine-grained token with read-only Contents access.
 - **Open issues.** GitHub's own open-issue number includes pull requests, so the plugin lists the open issues and leaves pull requests out. A repository with nothing open costs no extra request. Open pull requests come from GitHub's pull request list. A repository with issues or pull requests turned off shows n/a for that column. For private repositories, the token needs read-only Issues or Pull requests access.
 - **Release dates.** The initial release is the date of the earliest published GitHub release and the last updated date is that of the latest one. Drafts and pre-releases are ignored, because Obsidian doesn't install them. When GitHub can't be reached, a plugin's last updated date comes from Obsidian's stats file. Dates are shown in your local time zone, in the format set under **Date format**, or in your Obsidian language's format if that is empty. Exported history and summaries always use `YYYY-MM-DD HH:mm`.
@@ -48,15 +48,15 @@ Limits:
 - A download is an install or an update, not a person. Updating a plugin, or installing it in a second vault, counts again.
 - A plugin or theme appears only once it is in Obsidian's community lists. Projects still in review are not shown.
 - The change column compares with the most recent snapshot saved before the counts were fetched. If the count's source differs from the snapshot's, for example a live count saved and a stats-file count now, the change shows n/a.
-- Without a token, GitHub allows 60 requests an hour from your network. Each plugin and other repository takes at least one request per refresh, showing stars adds one request per repository, showing either release date adds one request per theme, listing all repositories adds one request per page of 100 repositories plus at least one per repository, and open issues and open pull requests each add one request per repository that has anything open.
+- Without a token, GitHub allows 60 requests an hour from your network. Each plugin, theme and other repository takes at least one request per refresh, showing stars adds one request per repository, showing either release date adds one request per theme, listing all repositories adds one request per page of 100 repositories plus at least one per repository, and open issues and open pull requests each add one request per repository that has anything open.
 
 ## Network use
 
 The plugin connects to these hosts only when you open the dashboard, run a command that needs counts, or turn on refresh at startup:
 
 - `raw.githubusercontent.com`: Obsidian's community plugin list, theme list and plugin stats file, from the `obsidianmd/obsidian-releases` repository.
-- `api.github.com`: the release list of each of your plugins and other repositories, to read download counts and release dates, and, if you turn on stars, each repository's star count. If you set a token, it is sent only to this host.
-- `releases.obsidian.md`: Obsidian's theme download statistics.
+- `api.github.com`: the release list of each of your plugins and other repositories, and of each theme, to read download counts and release dates, and, if you turn on stars, each repository's star count. If you set a token, it is sent only to this host.
+- `releases.obsidian.md`: Obsidian's theme download statistics, for themes without GitHub release counts.
 
 ## Privacy
 

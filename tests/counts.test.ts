@@ -18,6 +18,7 @@ import {
 	toCount,
 	toStars,
 	toVisibility,
+	hasManifestAssets,
 	isRateLimited,
 	countIssues,
 	repoUrl,
@@ -92,6 +93,14 @@ describe('releaseDates', () => {
 
 	it('gives null dates when nothing is published', () => {
 		expect(releaseDates([{ tag_name: '1.0.0', draft: true }])).toEqual({ first: null, last: null });
+	});
+});
+
+describe('hasManifestAssets', () => {
+	it('tells released themes from themes installed from the repository', () => {
+		expect(hasManifestAssets([{ tag_name: '1.0.4', assets: [{ name: 'manifest.json', download_count: 524 }, { name: 'theme.css', download_count: 522 }] }])).toBe(true);
+		expect(hasManifestAssets([{ tag_name: 'v1', assets: [{ name: 'source.zip', download_count: 3 }] }])).toBe(false);
+		expect(hasManifestAssets([])).toBe(false);
 	});
 });
 

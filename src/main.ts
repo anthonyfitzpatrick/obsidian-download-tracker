@@ -85,7 +85,6 @@ export default class DownloadTrackerPlugin extends Plugin {
 			usernames: parseList(s.usernames),
 			extraRepos: parseList(s.extraRepos),
 			withStars: s.showStars,
-			withThemeDates: s.showFirstRelease || s.showLastUpdated,
 			withAllRepos: s.showAllRepos,
 			withIssues: s.showIssues,
 			withPulls: s.showPulls,

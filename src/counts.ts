@@ -80,6 +80,12 @@ export function sumManifestDownloads(releases: GitHubRelease[]): { total: number
 	return { total, versions: sortVersions(versions) };
 }
 
+// Themes released the modern way ship a manifest.json per release, which gives a
+// live count like a plugin's; older themes install straight from the repository.
+export function hasManifestAssets(releases: GitHubRelease[]): boolean {
+	return releases.some((r) => (r.assets ?? []).some((a) => a.name === 'manifest.json'));
+}
+
 // For repositories outside Obsidian's lists there is no manifest.json to count,
 // so every file attached to a release counts, each download separately.
 export function sumReleaseFiles(releases: GitHubRelease[]): { total: number; versions: VersionCount[] } {

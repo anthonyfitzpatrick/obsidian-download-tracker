@@ -113,9 +113,10 @@ function drawCharts(
 	const perProject = periodSeries(rows, projectSlots(all, filter.kind), current.time);
 	if (!perProject) empty(projects, 'None of these projects has dated releases with downloads.');
 	else lines(projects, perProject.series, date, perProject);
-	if (rows.some((r) => r.kind === 'theme')) {
+	const undated = rows.filter((r) => r.kind !== 'repo' && !r.versions.some((v) => typeof v.published === 'number'));
+	if (undated.length > 0) {
 		projects.createEl('p', {
-			text: 'Themes aren’t in this chart: Obsidian publishes one total per theme, not a count per release.',
+			text: `Not in this chart, because they have no per-release download counts: ${undated.map((r) => r.name).join(', ')}.`,
 			cls: 'download-tracker-chart-note',
 		});
 	}

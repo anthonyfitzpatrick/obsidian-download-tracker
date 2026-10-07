@@ -140,7 +140,7 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Show initial release date')
-			.setDesc('Add a column with the date of the first published GitHub release. For themes this makes one more GitHub request per theme on each refresh.')
+			.setDesc('Add a column with the date of the first published GitHub release.')
 			.addToggle((toggle) =>
 				toggle.setValue(settings.showFirstRelease).onChange(async (value) => {
 					settings.showFirstRelease = value;
@@ -151,7 +151,7 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Show last updated date')
-			.setDesc("Add a column with the date of the latest published GitHub release. If GitHub can't be reached, plugins use the date in Obsidian's stats file. For themes this makes one more GitHub request per theme on each refresh.")
+			.setDesc("Add a column with the date of the latest published GitHub release. If GitHub can't be reached, plugins use the date in Obsidian's stats file.")
 			.addToggle((toggle) =>
 				toggle.setValue(settings.showLastUpdated).onChange(async (value) => {
 					settings.showLastUpdated = value;
