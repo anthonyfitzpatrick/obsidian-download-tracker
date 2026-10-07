@@ -65,6 +65,18 @@ Above the charts is a filter row. Choose **All** (plugins and themes), **Plugins
 
 On a narrow pane or a phone, names move above their bars and the charts stack.
 
+## What Obsidian doesn't publish
+
+Obsidian publishes a daily history of plugin downloads, but not of theme downloads. Its theme statistics only ever give today's total. GitHub doesn't keep a history for anyone: a release's download count is a running total with no dates.
+
+What this means in the charts:
+
+- **Plugins** have real totals back to their first appearance in Obsidian's directory.
+- **Themes** have real totals only from your first snapshot. Before that, their totals are estimated as a straight rise from zero at release to the first recorded value, and drawn as dashed lines with hollow dots. Tooltips mark these values "estimated". They show the general shape, not what actually happened week by week.
+- **Other repositories** work like themes: real totals only from your snapshots.
+
+To build real theme history, turn on **Save a snapshot each day**, and **Refresh on startup** to catch every day you open Obsidian. Each week then gets a recorded point, and the dashed part stops growing. Weeks that have already passed can't be recovered.
+
 ## Save a snapshot
 
 Select **Save snapshot** on the dashboard, or run **Download Tracker: Save snapshot**. The counts on screen are saved with the time they were fetched.
