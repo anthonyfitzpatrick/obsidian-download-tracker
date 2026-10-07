@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, projectSlots, versionsOldestFirst } from '../src/chart-data';
+import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, projectSlots } from '../src/chart-data';
 import type { FiguresCache } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
@@ -148,16 +148,5 @@ describe('niceTicks', () => {
 
 	it('copes with a flat range', () => {
 		expect(niceTicks(0, 0)).toEqual([0, 0.5, 1]);
-	});
-});
-
-describe('versionsOldestFirst', () => {
-	it('orders versions numerically', () => {
-		const ordered = versionsOldestFirst([
-			{ version: '0.10.0', downloads: 1 },
-			{ version: '0.2.0', downloads: 2 },
-			{ version: '0.9.1', downloads: 3 },
-		]);
-		expect(ordered.map((v) => v.version)).toEqual(['0.2.0', '0.9.1', '0.10.0']);
 	});
 });

@@ -14,9 +14,8 @@ import {
 	kindMatches,
 	nameMatches,
 	niceTicks,
-	versionsOldestFirst,
 } from './chart-data';
-import { Row, Snapshot, delta, formatCount, formatDelta } from './counts';
+import { Row, Snapshot, formatCount } from './counts';
 import type { Report } from './fetch';
 
 type DateFormatter = (time: number | null, withTime?: boolean) => string;
@@ -39,7 +38,6 @@ export function renderCharts(
 	parent: HTMLElement,
 	report: Report,
 	snapshots: Snapshot[],
-	previous: Snapshot | undefined,
 	date: DateFormatter,
 	filter: ChartFilter,
 	onFilter: (filter: ChartFilter) => void,
@@ -61,7 +59,7 @@ export function renderCharts(
 
 	const draw = () => {
 		body.empty();
-		drawCharts(body, all, snapshots, previous, date, filter, { time: report.fetchedAt, rows: all }, history);
+		drawCharts(body, all, snapshots, date, filter, { time: report.fetchedAt, rows: all }, history);
 	};
 
 	const chips: { kind: KindFilter; el: HTMLElement }[] = [];
@@ -103,7 +101,6 @@ function drawCharts(
 	parent: HTMLElement,
 	all: Row[],
 	snapshots: Snapshot[],
-	previous: Snapshot | undefined,
 	date: DateFormatter,
 	filter: ChartFilter,
 	current: Current,
@@ -151,26 +148,6 @@ function drawCharts(
 	else if (snapshots.length === 0) empty(history, needHistory);
 	else lines(history, series, date);
 
-	if (previous) {
-		const changes = rows
-			.map((r) => ({ row: r, change: delta(r, previous) }))
-			.filter((c): c is { row: Row; change: number } => c.change !== null);
-		if (changes.length > 0) {
-			const since = card(
-				parent,
-				'Since the last snapshot',
-				`Compared with ${date(previous.fetchedAt, true)}. A bar left of the centre line means the count went down, usually because it now comes from a source that lags.`,
-			);
-			changeBars(since, changes);
-		}
-	}
-
-	const withVersions = rows.filter((r) => r.versions.length > 1);
-	if (withVersions.length > 0) {
-		const versions = card(parent, 'Downloads by version', 'Oldest version on the left. Each chart has its own scale.');
-		const grid = versions.createDiv({ cls: 'download-tracker-multiples' });
-		for (const r of withVersions) versionColumns(grid, r);
-	}
 }
 
 function card(parent: HTMLElement, title: string, help: string): HTMLElement {
@@ -221,42 +198,6 @@ function focusable(el: HTMLElement, tip: string): void {
 	el.tabIndex = 0;
 	el.setAttr('aria-label', tip);
 	setTooltip(el, tip);
-}
-
-function changeBars(parent: HTMLElement, changes: { row: Row; change: number }[]): void {
-	const sorted = [...changes].sort((a, b) => b.change - a.change);
-	const max = Math.max(...sorted.map((c) => Math.abs(c.change)), 1);
-	const hasNegative = sorted.some((c) => c.change < 0);
-	const list = parent.createDiv({ cls: 'download-tracker-bars' });
-	for (const { row, change } of sorted) {
-		const el = list.createDiv({ cls: 'download-tracker-bar-row' });
-		focusable(el, `${row.name}: ${formatDelta(change)} downloads`);
-		el.createDiv({ text: row.name, cls: 'download-tracker-bar-label' });
-		const track = el.createDiv({ cls: 'download-tracker-bar-track' + (hasNegative ? ' is-diverging' : '') });
-		const plot = hasNegative ? track.createDiv({ cls: 'download-tracker-bar-plot' }) : track;
-		const width = (Math.abs(change) / max) * (hasNegative ? 50 : 100);
-		plot.createDiv({ cls: `download-tracker-bar-fill ${change < 0 ? 'is-negative' : 'is-positive'}` }).style.width =
-			`${width}%`;
-		track.createSpan({ text: formatDelta(change), cls: 'download-tracker-bar-value' });
-	}
-}
-
-function versionColumns(parent: HTMLElement, row: Row): void {
-	const versions = versionsOldestFirst(row.versions);
-	const max = Math.max(...versions.map((v) => v.downloads), 1);
-	const tallest = versions.reduce((a, b) => (b.downloads > a.downloads ? b : a));
-	const el = parent.createDiv({ cls: 'download-tracker-multiple' });
-	el.createDiv({ text: row.name, cls: 'download-tracker-multiple-title' });
-	const plot = el.createDiv({ cls: `download-tracker-columns is-${row.kind}` });
-	for (const v of versions) {
-		const slot = plot.createDiv({ cls: 'download-tracker-column-slot' });
-		focusable(slot, `${row.name} ${v.version}: ${formatCount(v.downloads)} downloads`);
-		if (v === tallest) slot.createSpan({ text: formatCount(v.downloads), cls: 'download-tracker-column-value' });
-		slot.createDiv({ cls: 'download-tracker-column' }).style.height = `${(v.downloads / max) * 100}%`;
-	}
-	const axis = el.createDiv({ cls: 'download-tracker-columns-axis' });
-	axis.createSpan({ text: versions[0]?.version ?? '' });
-	axis.createSpan({ text: versions[versions.length - 1]?.version ?? '' });
 }
 
 interface PeriodAxis {

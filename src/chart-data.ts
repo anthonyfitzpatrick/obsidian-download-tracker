@@ -1,4 +1,4 @@
-import { Kind, Row, Snapshot, VersionCount, compareVersions, rowKey } from './counts';
+import { Kind, Row, Snapshot, rowKey } from './counts';
 
 export interface Point {
 	time: number;
@@ -194,8 +194,4 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
 		if (t >= max) return ticks;
 		t += step;
 	}
-}
-
-export function versionsOldestFirst(versions: VersionCount[]): VersionCount[] {
-	return [...versions].sort((a, b) => compareVersions(a.version, b.version));
 }

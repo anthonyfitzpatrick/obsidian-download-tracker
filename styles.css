@@ -130,13 +130,12 @@
 }
 
 
-/* Series colours: validated as a set for light and dark surfaces (blue, orange, aqua; red for a drop).
+/* Series colours: validated as a set for light and dark surfaces (blue, orange, aqua).
    The combined total is drawn in neutral ink so it reads as a sum, not another series. */
 .download-tracker {
 	--dt-plugin: #2a78d6;
 	--dt-theme: #eb6834;
 	--dt-repo: #1baf7a;
-	--dt-negative: #e34948;
 	--dt-total: var(--text-muted);
 }
 
@@ -166,7 +165,6 @@
 	--dt-plugin: #3987e5;
 	--dt-theme: #d95926;
 	--dt-repo: #199e70;
-	--dt-negative: #e66767;
 }
 
 /* Tabs and filter chips are not buttons, so themes that restyle buttons can't hide their labels. */
@@ -294,188 +292,20 @@
 	border-radius: 1px;
 }
 
-.download-tracker-bars {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.download-tracker-bar-row {
-	display: grid;
-	grid-template-columns: minmax(6rem, 30%) 1fr;
-	align-items: center;
-	column-gap: var(--size-4-2);
-	padding: 3px var(--size-4-1);
-	border-radius: var(--radius-s);
-}
-
-.download-tracker-bar-row:hover,
-.download-tracker-bar-row:focus-visible,
-.download-tracker-column-slot:hover,
-.download-tracker-column-slot:focus-visible {
-	background-color: var(--background-modifier-hover);
-	outline: none;
-}
-
-.download-tracker-bar-label {
-	overflow-wrap: anywhere;
-	font-size: var(--font-ui-small);
-	line-height: 1.3;
-	color: var(--text-normal);
-}
-
-.download-tracker-bar-track {
-	display: flex;
-	align-items: center;
-	gap: var(--size-4-2);
-	min-width: 0;
-	min-height: 16px;
-	padding-right: 4rem;
-}
-
-.download-tracker-bar-fill {
-	flex: 0 0 auto;
-	height: 12px;
-	min-width: 2px;
-	border-radius: 0 4px 4px 0;
-}
-
-.download-tracker-bar-value {
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-
-.download-tracker-bar-track.is-diverging {
-	padding-right: 0;
-}
-
-.download-tracker-bar-plot {
-	position: relative;
-	flex: 1 1 auto;
-	height: 12px;
-}
-
-.download-tracker-bar-plot::before {
-	content: '';
-	position: absolute;
-	left: 50%;
-	top: -3px;
-	bottom: -3px;
-	width: 1px;
-	background-color: var(--background-modifier-border);
-}
-
-.download-tracker-bar-plot .download-tracker-bar-fill {
-	position: absolute;
-	top: 0;
-}
-
-.download-tracker-bar-plot .download-tracker-bar-fill.is-positive {
-	left: 50%;
-}
-
-.download-tracker-bar-plot .download-tracker-bar-fill.is-negative {
-	right: 50%;
-	border-radius: 4px 0 0 4px;
-}
-
-.download-tracker-bar-track.is-diverging .download-tracker-bar-value {
-	min-width: 3rem;
-	text-align: right;
-}
-
-.download-tracker-swatch.is-plugin,
-.download-tracker-bar-fill.is-plugin,
-.download-tracker-bar-fill.is-positive,
-.download-tracker-columns.is-plugin .download-tracker-column {
+.download-tracker-swatch.is-plugin {
 	background-color: var(--dt-plugin);
 }
 
-.download-tracker-swatch.is-theme,
-.download-tracker-bar-fill.is-theme {
+.download-tracker-swatch.is-theme {
 	background-color: var(--dt-theme);
 }
 
-.download-tracker-swatch.is-repo,
-.download-tracker-bar-fill.is-repo,
-.download-tracker-columns.is-repo .download-tracker-column {
+.download-tracker-swatch.is-repo {
 	background-color: var(--dt-repo);
 }
 
 .download-tracker-swatch.is-total {
 	background-color: var(--dt-total);
-}
-
-.download-tracker-bar-fill.is-negative {
-	background-color: var(--dt-negative);
-}
-
-.download-tracker-multiples {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-	gap: var(--size-4-4);
-}
-
-/* Titles may wrap; the plot sits at the bottom so neighbouring charts share a baseline. */
-.download-tracker-multiple {
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-end;
-	min-width: 0;
-}
-
-.download-tracker-multiple-title {
-	overflow-wrap: anywhere;
-	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
-	line-height: 1.3;
-	margin-bottom: var(--size-4-1);
-}
-
-.download-tracker-columns {
-	display: flex;
-	align-items: flex-end;
-	gap: 2px;
-	height: 5rem;
-	padding-top: 1.2rem;
-	border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.download-tracker-column-slot {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-end;
-	align-items: center;
-	flex: 1 1 0;
-	height: 100%;
-	max-width: 24px;
-	border-radius: var(--radius-s) var(--radius-s) 0 0;
-}
-
-.download-tracker-column {
-	width: 100%;
-	min-height: 2px;
-	border-radius: 4px 4px 0 0;
-}
-
-.download-tracker-column-value {
-	position: absolute;
-	bottom: 100%;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	white-space: nowrap;
-}
-
-.download-tracker-columns-axis {
-	display: flex;
-	justify-content: space-between;
-	gap: var(--size-4-2);
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	font-variant-numeric: tabular-nums;
 }
 
 .download-tracker-line {
@@ -617,19 +447,10 @@
 	font-size: var(--font-ui-smaller);
 }
 
-/* Narrow panes and phones: names go above their bars, and the line chart gets shorter. */
+/* Narrow panes and phones: the line charts get shorter. */
 @container (max-width: 30rem) {
-	.download-tracker-bar-row {
-		grid-template-columns: 1fr;
-		row-gap: 2px;
-	}
-
 	.download-tracker-line {
 		grid-template-rows: 9rem auto;
-	}
-
-	.download-tracker-multiples {
-		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
 	}
 }
 

@@ -62,8 +62,6 @@ Above the charts is a filter row. Choose **All** (plugins and themes), **Plugins
 
 - **Downloads by project.** One line per project, with a point at the end of every week (every month or quarter for longer spans) from your earliest release to today. Plugin points are the real totals Obsidian published at that time: the plugin reads past versions of Obsidian's daily stats file the first time the chart needs them, and shows its progress above the chart. Those figures run a few days behind, so a line can rise at its last point, "Today", which is the live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots and start at your first one. Hover over a name in the legend below the chart to pick out its line, or over a period to see every project's total. Each project keeps its colour whatever the filter; past eight projects, the smallest share one grey "Other" line.
 - **Total downloads over time.** With **All**, three lines: plugins, themes, and both combined in grey. With one type chosen, a single line. Each point is a saved snapshot and the last point is today's counts, so the line starts once you have saved one snapshot.
-- **Since the last snapshot.** Each project's change since the snapshot the Change column uses. A bar left of the centre line means the count went down.
-- **Downloads by version.** One small column chart per project with more than one version, oldest on the left. Each has its own scale.
 
 On a narrow pane or a phone, names move above their bars and the charts stack.
 

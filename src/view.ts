@@ -154,7 +154,6 @@ export class DashboardView extends ItemView {
 				root.createDiv({ attr: { role: 'tabpanel' } }),
 				report,
 				this.plugin.snapshots,
-				previous,
 				(t, withTime) => this.plugin.displayDate(t, withTime),
 				this.chartFilter,
 				() => this.app.workspace.requestSaveLayout(),
