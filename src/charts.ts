@@ -5,8 +5,9 @@ import {
 	FiguresCache,
 	KindFilter,
 	Series,
-	historySeries,
+	periodTotals,
 	Period,
+	Point,
 	earliestRelease,
 	periodEnds,
 	periodSeries,
@@ -111,43 +112,48 @@ function drawCharts(
 		empty(parent, 'Nothing matches this filter.');
 		return;
 	}
-	const needHistory = 'Save a snapshot to start this line. Each snapshot adds a point, and today’s counts are the last one.';
-
-	const projects = card(
-		parent,
-		'Downloads by project',
-		'One line per project, with a point at the end of each period from the earliest release to today. Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, which is today’s live count from the tables. Themes and other repositories have no published history; their points come from your saved snapshots. Hover over a name in the legend to pick out its line, or over a period to see every value.',
-	);
 	// Periods come from the whole group, not the filtered rows, so changing the filter
 	// keeps the same dates and reuses the daily figures already fetched.
 	const group = all.filter((r) => (filter.kind === 'repo' ? r.kind === 'repo' : r.kind !== 'repo'));
 	const firstSnapshot = snapshots.length > 0 ? Math.min(...snapshots.map((s) => s.fetchedAt)) : null;
 	const startAt = earliestRelease(group) ?? firstSnapshot;
-	if (startAt === null) empty(projects, 'There is no history to draw yet.');
-	else {
-		const { ends, period } = periodEnds(startAt, current.time);
-		past.ensure(
-			ends.slice(0, -1),
-			group.filter((r) => r.kind === 'plugin').map((r) => r.id),
-		);
-		if (past.progress) projects.createEl('p', { text: past.progress, cls: 'download-tracker-chart-note' });
-		const perProject = periodSeries(rows, projectSlots(all, filter.kind), ends, past.figures, snapshots);
-		if (perProject.length === 0) empty(projects, 'No download counts are available.');
-		else lines(projects, perProject, date, { ends, period });
-		if (rows.some((r) => r.kind !== 'plugin')) {
-			projects.createEl('p', {
-				text: 'Themes and other repositories have no published history, so their lines start at your first saved snapshot.',
-				cls: 'download-tracker-chart-note',
-			});
-		}
+	if (startAt === null) {
+		empty(parent, 'There is no history to draw yet. Save a snapshot to start.');
+		return;
 	}
+	const axis = periodEnds(startAt, current.time);
+	past.ensure(
+		axis.ends.slice(0, -1),
+		group.filter((r) => r.kind === 'plugin').map((r) => r.id),
+	);
+	const sources =
+		'Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, today’s live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots. Where a total isn’t known, the line breaks.';
 
-	const history = card(parent, 'Total downloads over time', 'Each point is a saved snapshot; the last is today’s counts.');
-	const series = historySeries(snapshots, filter, current);
-	if (series.length === 0) empty(history, 'No counts include these projects yet.');
-	else if (snapshots.length === 0) empty(history, needHistory);
-	else lines(history, series, date);
+	const projects = card(
+		parent,
+		'Downloads by project',
+		`One line per project, with a point at the end of each period from the earliest release to today. ${sources} Hover over a name in the legend to pick out its line, or over a period to see every value.`,
+	);
+	if (past.progress) projects.createEl('p', { text: past.progress, cls: 'download-tracker-chart-note' });
+	const perProject = periodSeries(rows, projectSlots(all, filter.kind), axis.ends, past.figures, snapshots);
+	if (perProject.length === 0) empty(projects, 'No download counts are available.');
+	else lines(projects, perProject, date, axis);
 
+	const totals = card(
+		parent,
+		'Total downloads over time',
+		`Totals at the end of each period: plugins, themes and both together. ${sources}`,
+	);
+	const series = periodTotals(rows, filter.kind, axis.ends, past.figures, snapshots);
+	if (series.length === 0) empty(totals, 'No counts include these projects yet.');
+	else lines(totals, series, date, axis);
+
+	if (rows.some((r) => r.kind !== 'plugin')) {
+		parent.createEl('p', {
+			text: 'Themes and other repositories have no published history, so their lines start at your first saved snapshot. The daily snapshot setting builds it up.',
+			cls: 'download-tracker-chart-note',
+		});
+	}
 }
 
 function card(parent: HTMLElement, title: string, help: string): HTMLElement {
@@ -249,19 +255,30 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	});
 	for (const s of series) {
 		const own: Element[] = [];
-		const coords = s.points.map((p) => `${x(p.time)},${y(p.value)}`);
-		// A wash under one line helps; under several lines the washes stack into noise.
-		if (series.length === 1 && s.points.length > 0) {
-			const left = x(s.points[0]?.time ?? first);
-			const right = x(s.points[s.points.length - 1]?.time ?? lastTime);
-			own.push(
-				svg.createSvg('polygon', {
-					attr: { points: `${left},100 ${coords.join(' ')} ${right},100` },
-					cls: ['download-tracker-line-area', s.cls],
-				}),
-			);
+		// A line breaks where periods are missing, rather than bridging a gap it can't vouch for.
+		const segments: Point[][] = [];
+		for (const p of s.points) {
+			const current = segments[segments.length - 1];
+			const prev = current?.[current.length - 1];
+			const gap = periods && prev && (index.get(p.time) ?? 0) - (index.get(prev.time) ?? 0) > 1;
+			if (!current || gap) segments.push([p]);
+			else current.push(p);
 		}
-		own.push(svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', s.cls] }));
+		for (const segment of segments) {
+			const coords = segment.map((p) => `${x(p.time)},${y(p.value)}`);
+			// A wash under one line helps; under several lines the washes stack into noise.
+			if (series.length === 1) {
+				const left = x(segment[0]?.time ?? first);
+				const right = x(segment[segment.length - 1]?.time ?? lastTime);
+				own.push(
+					svg.createSvg('polygon', {
+						attr: { points: `${left},100 ${coords.join(' ')} ${right},100` },
+						cls: ['download-tracker-line-area', s.cls],
+					}),
+				);
+			}
+			own.push(svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', s.cls] }));
+		}
 		for (const p of s.points) {
 			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}` });
 			dot.style.left = `${x(p.time)}%`;

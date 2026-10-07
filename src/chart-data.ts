@@ -22,19 +22,6 @@ export function nameMatches(name: string, query: string): boolean {
 	return q === '' || name.toLowerCase().includes(q);
 }
 
-export function historyPoints(snapshots: Snapshot[], filter: ChartFilter = { kind: 'all', query: '' }): Point[] {
-	return [...snapshots]
-		.sort((a, b) => a.fetchedAt - b.fetchedAt)
-		.map((s) => ({
-			time: s.fetchedAt,
-			value: Object.entries(s.counts).reduce((sum, [key, v]) => {
-				const kind = key.slice(0, key.indexOf(':')) as Kind;
-				const name = s.names[key] ?? key;
-				return kindMatches(kind, filter.kind) && nameMatches(name, filter.query) ? sum + v : sum;
-			}, 0),
-		}));
-}
-
 export interface Series {
 	id: string;
 	label: string;
@@ -48,40 +35,6 @@ export interface Current {
 }
 
 const SLOTS = 8;
-
-function currentTotal(current: Current, kind: KindFilter, query: string): number {
-	return current.rows
-		.filter((r) => r.downloads !== null && kindMatches(r.kind, kind) && nameMatches(r.name, query))
-		.reduce((sum, r) => sum + (r.downloads ?? 0), 0);
-}
-
-// With "All", plugins and themes get a line each plus their combined total.
-// Any other filter draws one line. Series with no data in any snapshot are left out.
-// The current, unsaved counts are the last point of every line, so lines
-// start as soon as one snapshot exists.
-export function historySeries(snapshots: Snapshot[], filter: ChartFilter, current?: Current): Series[] {
-	const line = (kind: KindFilter): Point[] => {
-		const points = historyPoints(snapshots, { kind, query: filter.query });
-		if (current) points.push({ time: current.time, value: currentTotal(current, kind, filter.query) });
-		return points;
-	};
-	const has = (kind: Kind) =>
-		snapshots.some((s) =>
-			Object.keys(s.counts).some((k) => k.startsWith(kind + ':') && nameMatches(s.names[k] ?? k, filter.query)),
-		) || (current?.rows.some((r) => r.kind === kind && r.downloads !== null && nameMatches(r.name, filter.query)) ?? false);
-	if (filter.kind !== 'all') {
-		const labels: Record<Kind, string> = { plugin: 'Plugins', theme: 'Themes', repo: 'Other repositories' };
-		return has(filter.kind)
-			? [{ id: filter.kind, label: labels[filter.kind], cls: `is-${filter.kind}`, points: line(filter.kind) }]
-			: [];
-	}
-	const series: Series[] = [];
-	const kinds = (['plugin', 'theme'] as const).filter(has);
-	if (kinds.length > 1) series.push({ id: 'total', label: 'Plugins and themes', cls: 'is-total', points: line('all') });
-	if (kinds.includes('plugin')) series.push({ id: 'plugin', label: 'Plugins', cls: 'is-plugin', points: line('plugin') });
-	if (kinds.includes('theme')) series.push({ id: 'theme', label: 'Themes', cls: 'is-theme', points: line('theme') });
-	return series;
-}
 
 // Colours follow the project, not the filter: slots are handed out over the whole
 // group (plugins and themes together, or other repositories), largest first, so
@@ -140,10 +93,46 @@ export function missingFigures(ends: number[], ids: string[], cache: FiguresCach
 	});
 }
 
-// One line per project with a point at the end of every period: the project's real
-// total at that time. Plugins use Obsidian's daily figures; themes and other
-// repositories have no published history, so they use your saved snapshots. The
-// last point is today's count from the tables.
+// What is known about a project at a period end: its total, a zero because it wasn't
+// out yet, or nothing (null) when no source covers that date. Plugins use Obsidian's
+// daily figures; themes and other repositories only have saved snapshots. The last
+// period is today, which uses the count from the tables.
+interface Known {
+	value: number;
+	started: boolean;
+}
+
+function knownAt(r: Row, end: number, isLast: boolean, figures: FiguresCache, ordered: Snapshot[]): Known | null {
+	if (isLast) return r.downloads === null ? null : { value: r.downloads, started: true };
+	const first = earliestRelease([r]);
+	if (first !== null && end <= first) return { value: 0, started: false };
+	if (r.kind === 'plugin') {
+		const entry = figures[String(end)];
+		if (entry?.ids.includes(r.id)) {
+			const n = entry.counts[r.id];
+			// Missing from the file means not yet in Obsidian's directory.
+			return n === undefined ? { value: 0, started: false } : { value: n, started: true };
+		}
+	}
+	const saved = ordered.filter((s) => s.fetchedAt <= end && s.counts[rowKey(r)] !== undefined).pop();
+	const value = saved?.counts[rowKey(r)];
+	return value === undefined ? null : { value, started: true };
+}
+
+// A point only where every project in the group is known, so a sum never leaves
+// anything out; a line breaks where it can't be drawn truthfully.
+function groupLine(group: Row[], ends: number[], figures: FiguresCache, snapshots: Snapshot[]): Point[] {
+	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
+	const points: Point[] = [];
+	ends.forEach((end, i) => {
+		const known = group.map((r) => knownAt(r, end, i === ends.length - 1, figures, ordered));
+		if (known.some((k) => k === null) || !known.some((k) => k?.started)) return;
+		points.push({ time: end, value: known.reduce((sum, k) => sum + (k?.value ?? 0), 0) });
+	});
+	return points;
+}
+
+// One line per project, with a point at the end of every period.
 export function periodSeries(
 	rows: Row[],
 	slots: Map<string, string>,
@@ -151,33 +140,46 @@ export function periodSeries(
 	figures: FiguresCache,
 	snapshots: Snapshot[],
 ): Series[] {
-	const last = ends.length - 1;
-	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
-	const valueAt = (r: Row, end: number, i: number): number | undefined => {
-		if (i === last) return r.downloads ?? undefined;
-		if (r.kind === 'plugin') {
-			const daily = figures[String(end)]?.counts[r.id];
-			if (daily !== undefined) return daily;
-		}
-		const saved = ordered.filter((s) => s.fetchedAt <= end && s.counts[rowKey(r)] !== undefined).pop();
-		return saved?.counts[rowKey(r)];
-	};
-	const line = (group: Row[]): Point[] => {
-		const points: Point[] = [];
-		ends.forEach((end, i) => {
-			const values = group.map((r) => valueAt(r, end, i)).filter((v): v is number => v !== undefined);
-			if (values.length > 0) points.push({ time: end, value: values.reduce((a, b) => a + b, 0) });
-		});
-		return points;
-	};
 	const series: Series[] = [];
 	const others: Row[] = [];
 	for (const r of rows) {
 		const cls = slots.get(rowKey(r)) ?? 'is-total';
 		if (cls === 'is-total') others.push(r);
-		else series.push({ id: rowKey(r), label: r.name, cls, points: line([r]) });
+		else series.push({ id: rowKey(r), label: r.name, cls, points: groupLine([r], ends, figures, snapshots) });
 	}
-	if (others.length > 0) series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: line(others) });
+	if (others.length > 0) {
+		series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: groupLine(others, ends, figures, snapshots) });
+	}
+	return series.filter((s) => s.points.length > 0);
+}
+
+// With "All", plugins and themes get a line each plus their combined total; any
+// other filter draws one line. Same periods and sources as periodSeries.
+export function periodTotals(
+	rows: Row[],
+	kind: KindFilter,
+	ends: number[],
+	figures: FiguresCache,
+	snapshots: Snapshot[],
+): Series[] {
+	const of = (k: Kind) => rows.filter((r) => r.kind === k);
+	const make = (id: string, label: string, cls: string, group: Row[]): Series => ({
+		id,
+		label,
+		cls,
+		points: groupLine(group, ends, figures, snapshots),
+	});
+	const series: Series[] = [];
+	if (kind === 'all') {
+		const plugins = of('plugin');
+		const themes = of('theme');
+		if (plugins.length > 0 && themes.length > 0) series.push(make('total', 'Plugins and themes', 'is-total', [...plugins, ...themes]));
+		if (plugins.length > 0) series.push(make('plugin', 'Plugins', 'is-plugin', plugins));
+		if (themes.length > 0) series.push(make('theme', 'Themes', 'is-theme', themes));
+	} else {
+		const labels: Record<Kind, string> = { plugin: 'Plugins', theme: 'Themes', repo: 'Other repositories' };
+		if (of(kind).length > 0) series.push(make(kind, labels[kind], `is-${kind}`, of(kind)));
+	}
 	return series.filter((s) => s.points.length > 0);
 }
 

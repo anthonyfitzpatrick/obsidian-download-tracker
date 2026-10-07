@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, projectSlots } from '../src/chart-data';
+import { kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, periodTotals, projectSlots } from '../src/chart-data';
 import type { FiguresCache } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
@@ -7,23 +7,6 @@ function row(kind: Row['kind'], id: string, name: string, downloads: number | nu
 	return { kind, name, id, repo: `me/${id}`, downloads, source: 'live', versions: [], stars: null, firstRelease: null, lastUpdated: null, visibility: null, openIssues: null, openPulls: null };
 }
 
-describe('historyPoints', () => {
-	it('totals plugins and themes per snapshot in time order', () => {
-		const points = historyPoints([
-			{ fetchedAt: 2000, counts: { 'plugin:a': 12, 'theme:t': 5, 'repo:r': 900 }, names: {} },
-			{ fetchedAt: 1000, counts: { 'plugin:a': 10 }, names: {} },
-		]);
-		expect(points).toEqual([
-			{ time: 1000, value: 10 },
-			{ time: 2000, value: 17 },
-		]);
-	});
-});
-
-const snaps: Snapshot[] = [
-	{ fetchedAt: 1000, counts: { 'plugin:a': 10, 'theme:t': 4, 'repo:r': 50 }, names: { 'plugin:a': 'Alpha', 'theme:t': 'Tango', 'repo:r': 'Romeo' } },
-	{ fetchedAt: 2000, counts: { 'plugin:a': 12, 'theme:t': 5, 'repo:r': 60 }, names: { 'plugin:a': 'Alpha', 'theme:t': 'Tango', 'repo:r': 'Romeo' } },
-];
 
 describe('filters', () => {
 	it('treats All as plugins and themes, and matches names case-insensitively', () => {
@@ -34,40 +17,9 @@ describe('filters', () => {
 		expect(nameMatches('Metadata Visuals', 'amiga')).toBe(false);
 	});
 
-	it('totals only matching projects', () => {
-		expect(historyPoints(snaps, { kind: 'all', query: 'tan' }).map((p) => p.value)).toEqual([4, 5]);
-		expect(historyPoints(snaps, { kind: 'repo', query: '' }).map((p) => p.value)).toEqual([50, 60]);
-	});
 });
 
-describe('historySeries', () => {
-	it('draws plugins, themes and their total for All', () => {
-		const series = historySeries(snaps, { kind: 'all', query: '' });
-		expect(series.map((s) => [s.id, s.cls, s.points.map((p) => p.value)])).toEqual([
-			['total', 'is-total', [14, 17]],
-			['plugin', 'is-plugin', [10, 12]],
-			['theme', 'is-theme', [4, 5]],
-		]);
-	});
 
-	it('draws one line for a single type, and drops a total that would equal its only part', () => {
-		expect(historySeries(snaps, { kind: 'theme', query: '' }).map((s) => s.id)).toEqual(['theme']);
-		expect(historySeries(snaps, { kind: 'all', query: 'alpha' }).map((s) => s.id)).toEqual(['plugin']);
-		expect(historySeries(snaps, { kind: 'all', query: 'nothing' })).toEqual([]);
-	});
-});
-
-describe('historySeries with current counts', () => {
-	it('ends every line with the unsaved counts', () => {
-		const current = { time: 3000, rows: [row('plugin', 'a', 'Alpha', 20), row('theme', 't', 'Tango', 6)] };
-		const series = historySeries(snaps, { kind: 'all', query: '' }, current);
-		expect(series.map((s) => s.points.map((p) => p.value))).toEqual([
-			[14, 17, 26],
-			[10, 12, 20],
-			[4, 5, 6],
-		]);
-	});
-});
 
 describe('projectSlots', () => {
 	const rows = [row('plugin', 'a', 'Alpha', 20), row('theme', 't', 'Tango', 60), row('repo', 'r', 'Romeo', 70)];
@@ -129,6 +81,40 @@ describe('periodSeries', () => {
 		const figures: FiguresCache = { [String(day(12))]: { ids: ['a'], counts: {} }, [String(day(19))]: { ids: ['a'], counts: { a: 2 } } };
 		const series = periodSeries([a], projectSlots([a], 'all'), ends, figures, []);
 		expect(series[0]?.points.map((p) => p.time)).toEqual([day(19), day(20)]);
+	});
+});
+
+describe('periodTotals', () => {
+	const day = (d: number) => new Date(2026, 6, d).getTime();
+	const ends = [day(12), day(19), day(26), day(30)];
+	const plugin = row('plugin', 'a', 'Alpha', 40);
+	plugin.versions = [{ version: '1.0.0', downloads: 40, published: day(1) }];
+	const theme = row('theme', 't', 'Tango', 9);
+	theme.versions = [{ version: '1.0.0', downloads: 9, published: day(15) }];
+	const figures: FiguresCache = {
+		[String(day(12))]: { ids: ['a'], counts: { a: 10 } },
+		[String(day(19))]: { ids: ['a'], counts: { a: 20 } },
+		[String(day(26))]: { ids: ['a'], counts: { a: 30 } },
+	};
+	const saved: Snapshot[] = [{ fetchedAt: day(25), counts: { 'theme:t': 6 }, names: {} }];
+
+	it('adds a theme as zero before its release and leaves out periods it can’t vouch for', () => {
+		const series = periodTotals([plugin, theme], 'all', ends, figures, []);
+		expect(series.map((s) => [s.id, s.points.map((p) => [p.time, p.value])])).toEqual([
+			['total', [[day(12), 10], [day(30), 49]]],
+			['plugin', [[day(12), 10], [day(19), 20], [day(26), 30], [day(30), 40]]],
+			['theme', [[day(30), 9]]],
+		]);
+	});
+
+	it('fills theme periods from snapshots', () => {
+		const series = periodTotals([plugin, theme], 'all', ends, figures, saved);
+		expect(series[0]?.points.map((p) => p.value)).toEqual([10, 36, 49]);
+		expect(series[2]?.points.map((p) => p.value)).toEqual([6, 9]);
+	});
+
+	it('draws one line for a single type', () => {
+		expect(periodTotals([plugin, theme], 'theme', ends, figures, saved).map((s) => s.id)).toEqual(['theme']);
 	});
 });
 
