@@ -1,5 +1,7 @@
 # Download Tracker
 
+[Download Tracker in Obsidian's community directory](https://community.obsidian.md/plugins/download-tracker)
+
 An Obsidian plugin for people who publish community plugins and themes. It shows how many times each of your plugins and themes has been downloaded, how that has changed over time, and when each release went out, all inside Obsidian.
 
 ![Downloads by project: one line per plugin and theme from the first release to today](docs/images/charts-downloads-by-project.png)
@@ -68,11 +70,13 @@ The [user guide](USER_GUIDE.md) has a screenshot for every part of the plugin.
 
 ## Install
 
-Until the plugin is in the community directory:
+Download Tracker is in Obsidian's community directory: [community.obsidian.md/plugins/download-tracker](https://community.obsidian.md/plugins/download-tracker).
 
-1. Download `main.js`, `manifest.json` and `styles.css` from the latest release on GitHub.
-2. In your vault, create the folder `.obsidian/plugins/download-tracker` and put the three files in it.
-3. In Obsidian, open **Settings → Community plugins**, reload the list of installed plugins and turn on **Download Tracker**.
+1. In Obsidian, open **Settings → Community plugins** and turn off restricted mode if it is on.
+2. Select **Browse**, search for "Download Tracker" and select **Install**.
+3. Select **Enable**.
+
+To install by hand instead, download `main.js`, `manifest.json` and `styles.css` from the latest release on GitHub, put them in your vault's `.obsidian/plugins/download-tracker` folder, then reload the list of installed plugins under **Settings → Community plugins** and turn on **Download Tracker**.
 
 ## Quick start
 
