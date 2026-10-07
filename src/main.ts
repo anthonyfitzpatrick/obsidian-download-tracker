@@ -10,7 +10,8 @@ import {
 	summaryTable,
 	summaryText,
 } from './counts';
-import { Report, ReportOptions, loadReport, queryKey } from './fetch';
+import { FiguresCache, missingFigures } from './chart-data';
+import { Report, ReportOptions, loadDailyFigures, loadReport, queryKey } from './fetch';
 import { DEFAULT_SETTINGS, DownloadTrackerSettingTab, DownloadTrackerSettings } from './settings';
 import { DashboardView, VIEW_TYPE } from './view';
 
@@ -18,6 +19,7 @@ interface StoredData {
 	settings: DownloadTrackerSettings;
 	report: Report | null;
 	snapshots: Snapshot[];
+	figures: FiguresCache;
 }
 
 const NO_ACCOUNTS = "Add your GitHub username in this plugin's settings to see download counts.";
@@ -28,6 +30,10 @@ export default class DownloadTrackerPlugin extends Plugin {
 	loading = false;
 	progress = '';
 	error = '';
+	figures: FiguresCache = {};
+	figuresProgress = '';
+	private figuresPending: Promise<void> | null = null;
+	private figuresRefused = false;
 	private storedReport: Report | null = null;
 	private pending: Promise<void> | null = null;
 	private pendingQuery = '';
@@ -37,6 +43,7 @@ export default class DownloadTrackerPlugin extends Plugin {
 		this.settings = { ...DEFAULT_SETTINGS, ...data?.settings };
 		this.storedReport = data?.report ?? null;
 		this.snapshots = data?.snapshots ?? [];
+		this.figures = data?.figures ?? {};
 
 		this.registerView(VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
 		this.addRibbonIcon('download', 'Open download tracker', () => void this.openDashboard());
@@ -101,7 +108,12 @@ export default class DownloadTrackerPlugin extends Plugin {
 	}
 
 	private async saveStoredData(): Promise<void> {
-		const data: StoredData = { settings: this.settings, report: this.storedReport, snapshots: this.snapshots };
+		const data: StoredData = {
+			settings: this.settings,
+			report: this.storedReport,
+			snapshots: this.snapshots,
+			figures: this.figures,
+		};
 		await this.saveData(data);
 	}
 
@@ -121,6 +133,41 @@ export default class DownloadTrackerPlugin extends Plugin {
 		await workspace.revealLeaf(leaf);
 	}
 
+	// Fetches Obsidian's past daily figures the charts need, once each. After GitHub
+	// refuses, it waits for the next manual refresh instead of retrying on every render.
+	ensureFigures(ends: number[], ids: string[]): void {
+		if (this.figuresPending || this.figuresRefused || ids.length === 0) return;
+		const missing = missingFigures(ends, ids, this.figures);
+		if (missing.length === 0) return;
+		const token = this.settings.tokenSecret
+			? (this.app.secretStorage.getSecret(this.settings.tokenSecret) ?? '')
+			: '';
+		// Started on the next tick: progress re-renders the view, which calls this again,
+		// and by then figuresPending is set.
+		this.figuresPending = Promise.resolve()
+			.then(() =>
+				loadDailyFigures(missing, ids, this.figures, token, (done, total) => {
+					this.figuresProgress = done < total ? `Loading Obsidian's daily figures: ${done + 1} of ${total}...` : '';
+					this.renderViews();
+				}),
+			)
+			.then(async (result) => {
+				if (result === 'refused') {
+					this.figuresRefused = true;
+					this.figuresProgress = "GitHub refused some requests for Obsidian's daily figures, so part of the history is missing. Refresh later to try again.";
+				}
+				await this.saveStoredData();
+			})
+			.catch(() => {
+				this.figuresRefused = true;
+				this.figuresProgress = "Could not load Obsidian's daily figures. Refresh to try again.";
+			})
+			.finally(() => {
+				this.figuresPending = null;
+				this.renderViews();
+			});
+	}
+
 	ensureReport(): Promise<void> {
 		return this.refresh(false);
 	}
@@ -138,6 +185,10 @@ export default class DownloadTrackerPlugin extends Plugin {
 		const maxAge = this.settings.cacheMinutes * 60_000;
 		if (!force && report && Date.now() - report.fetchedAt < maxAge) return Promise.resolve();
 
+		if (force) {
+			this.figuresRefused = false;
+			if (!this.figuresPending) this.figuresProgress = '';
+		}
 		this.pendingQuery = this.query();
 		this.pending = this.fetchReport().finally(() => {
 			this.pending = null;

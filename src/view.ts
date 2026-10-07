@@ -158,6 +158,11 @@ export class DashboardView extends ItemView {
 				(t, withTime) => this.plugin.displayDate(t, withTime),
 				this.chartFilter,
 				() => this.app.workspace.requestSaveLayout(),
+				{
+					figures: this.plugin.figures,
+					progress: this.plugin.figuresProgress,
+					ensure: (ends, ids) => this.plugin.ensureFigures(ends, ids),
+				},
 			);
 			return;
 		}

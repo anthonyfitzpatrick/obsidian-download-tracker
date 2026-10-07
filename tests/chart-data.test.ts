@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, periodEnds, periodSeries, projectSlots, versionsOldestFirst } from '../src/chart-data';
+import { historyPoints, historySeries, kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, projectSlots, versionsOldestFirst } from '../src/chart-data';
+import type { FiguresCache } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
 function row(kind: Row['kind'], id: string, name: string, downloads: number | null): Row {
@@ -106,27 +107,36 @@ describe('periodEnds', () => {
 
 describe('periodSeries', () => {
 	const day = (d: number) => new Date(2026, 6, d).getTime();
-	const now = day(20);
+	const ends = [day(12), day(19), day(20)];
 
-	it('gives each project a running total at the end of every period from its first release', () => {
+	it('uses Obsidian figures for plugins, snapshots for themes and today’s counts last', () => {
 		const a = row('plugin', 'a', 'Alpha', 30);
-		a.versions = [
-			{ version: '1.1.0', downloads: 20, published: day(15) },
-			{ version: '1.0.0', downloads: 10, published: day(5) },
-		];
-		const b = row('plugin', 'b', 'Bravo', 4);
-		b.versions = [{ version: '1.0.0', downloads: 4, published: day(12) }];
-		const t = row('theme', 't', 'Tango', 5);
-		const result = periodSeries([a, b, t], projectSlots([a, b, t], 'all'), now);
-		expect(result?.ends).toEqual([day(12), day(19), now]);
-		expect(result?.series.map((s) => [s.label, s.cls, s.points.map((p) => p.value)])).toEqual([
-			['Alpha', 'is-slot-1', [10, 30, 30]],
-			['Bravo', 'is-slot-3', [4, 4]],
+		const t = row('theme', 't', 'Tango', 9);
+		const figures = {
+			[String(day(12))]: { ids: ['a'], counts: { a: 4 } },
+			[String(day(19))]: { ids: ['a'], counts: { a: 11 } },
+		};
+		const saved: Snapshot[] = [{ fetchedAt: day(18), counts: { 'theme:t': 7 }, names: {} }];
+		const series = periodSeries([a, t], projectSlots([a, t], 'all'), ends, figures, saved);
+		expect(series.map((s) => [s.label, s.points.map((p) => p.value)])).toEqual([
+			['Alpha', [4, 11, 30]],
+			['Tango', [7, 9]],
 		]);
 	});
 
-	it('returns nothing when no release has a date', () => {
-		expect(periodSeries([row('theme', 't', 'Tango', 5)], new Map(), now)).toBeNull();
+	it('starts a plugin when it first appears in the figures', () => {
+		const a = row('plugin', 'a', 'Alpha', 30);
+		const figures: FiguresCache = { [String(day(12))]: { ids: ['a'], counts: {} }, [String(day(19))]: { ids: ['a'], counts: { a: 2 } } };
+		const series = periodSeries([a], projectSlots([a], 'all'), ends, figures, []);
+		expect(series[0]?.points.map((p) => p.time)).toEqual([day(19), day(20)]);
+	});
+});
+
+describe('missingFigures', () => {
+	it('asks again for dates fetched before a plugin was added', () => {
+		const cache = { '1': { ids: ['a'], counts: { a: 1 } }, '2': { ids: ['a', 'b'], counts: {} } };
+		expect(missingFigures([1, 2, 3], ['a'], cache)).toEqual([3]);
+		expect(missingFigures([1, 2, 3], ['a', 'b'], cache)).toEqual([1, 3]);
 	});
 });
 

@@ -2,10 +2,13 @@ import { moment, setTooltip } from 'obsidian';
 import {
 	ChartFilter,
 	Current,
+	FiguresCache,
 	KindFilter,
 	Series,
 	historySeries,
 	Period,
+	earliestRelease,
+	periodEnds,
 	periodSeries,
 	projectSlots,
 	kindMatches,
@@ -17,6 +20,12 @@ import { Row, Snapshot, delta, formatCount, formatDelta } from './counts';
 import type { Report } from './fetch';
 
 type DateFormatter = (time: number | null, withTime?: boolean) => string;
+
+export interface History {
+	figures: FiguresCache;
+	progress: string;
+	ensure: (ends: number[], pluginIds: string[]) => void;
+}
 
 const KIND_OPTIONS: { kind: KindFilter; label: string }[] = [
 	{ kind: 'all', label: 'All' },
@@ -34,6 +43,7 @@ export function renderCharts(
 	date: DateFormatter,
 	filter: ChartFilter,
 	onFilter: (filter: ChartFilter) => void,
+	history: History,
 ): void {
 	const all = [...report.plugins, ...report.themes, ...report.repos];
 	const present = new Set(all.map((r) => r.kind));
@@ -51,7 +61,7 @@ export function renderCharts(
 
 	const draw = () => {
 		body.empty();
-		drawCharts(body, all, snapshots, previous, date, filter, { time: report.fetchedAt, rows: all });
+		drawCharts(body, all, snapshots, previous, date, filter, { time: report.fetchedAt, rows: all }, history);
 	};
 
 	const chips: { kind: KindFilter; el: HTMLElement }[] = [];
@@ -97,6 +107,7 @@ function drawCharts(
 	date: DateFormatter,
 	filter: ChartFilter,
 	current: Current,
+	past: History,
 ): void {
 	const rows = all.filter((r) => kindMatches(r.kind, filter.kind) && nameMatches(r.name, filter.query));
 	if (rows.length === 0) {
@@ -108,17 +119,30 @@ function drawCharts(
 	const projects = card(
 		parent,
 		'Downloads by project',
-		'One line per project, with a point at the end of each period from the earliest publication to today. Each point is the running total of downloads of the releases published by then; a release’s downloads are counted on the date it was published, not when people downloaded it. Hover over a name in the legend to pick out its line, or over a period to see every value.',
+		'One line per project, with a point at the end of each period from the earliest release to today. Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, which is today’s live count from the tables. Themes and other repositories have no published history; their points come from your saved snapshots. Hover over a name in the legend to pick out its line, or over a period to see every value.',
 	);
-	const perProject = periodSeries(rows, projectSlots(all, filter.kind), current.time);
-	if (!perProject) empty(projects, 'None of these projects has dated releases with downloads.');
-	else lines(projects, perProject.series, date, perProject);
-	const undated = rows.filter((r) => r.kind !== 'repo' && !r.versions.some((v) => typeof v.published === 'number'));
-	if (undated.length > 0) {
-		projects.createEl('p', {
-			text: `Not in this chart, because they have no per-release download counts: ${undated.map((r) => r.name).join(', ')}.`,
-			cls: 'download-tracker-chart-note',
-		});
+	// Periods come from the whole group, not the filtered rows, so changing the filter
+	// keeps the same dates and reuses the daily figures already fetched.
+	const group = all.filter((r) => (filter.kind === 'repo' ? r.kind === 'repo' : r.kind !== 'repo'));
+	const firstSnapshot = snapshots.length > 0 ? Math.min(...snapshots.map((s) => s.fetchedAt)) : null;
+	const startAt = earliestRelease(group) ?? firstSnapshot;
+	if (startAt === null) empty(projects, 'There is no history to draw yet.');
+	else {
+		const { ends, period } = periodEnds(startAt, current.time);
+		past.ensure(
+			ends.slice(0, -1),
+			group.filter((r) => r.kind === 'plugin').map((r) => r.id),
+		);
+		if (past.progress) projects.createEl('p', { text: past.progress, cls: 'download-tracker-chart-note' });
+		const perProject = periodSeries(rows, projectSlots(all, filter.kind), ends, past.figures, snapshots);
+		if (perProject.length === 0) empty(projects, 'No download counts are available.');
+		else lines(projects, perProject, date, { ends, period });
+		if (rows.some((r) => r.kind !== 'plugin')) {
+			projects.createEl('p', {
+				text: 'Themes and other repositories have no published history, so their lines start at your first saved snapshot.',
+				cls: 'download-tracker-chart-note',
+			});
+		}
 	}
 
 	const history = card(parent, 'Total downloads over time', 'Each point is a saved snapshot; the last is today’s counts.');

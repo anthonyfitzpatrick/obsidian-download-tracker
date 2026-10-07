@@ -1,4 +1,5 @@
 import { requestUrl } from 'obsidian';
+import type { FiguresCache } from './chart-data';
 import {
 	GitHubRelease,
 	Row,
@@ -75,6 +76,47 @@ async function firstThemeStats(): Promise<Record<string, unknown> | null> {
 		}
 	}
 	return null;
+}
+
+const RELEASES_REPO = 'obsidianmd/obsidian-releases';
+const PLUGIN_STATS = 'community-plugin-stats.json';
+
+// For each period end, finds the last commit of Obsidian's stats file before it and
+// reads that version. Results go into the cache as they arrive, so an interrupted
+// run resumes where it stopped.
+export async function loadDailyFigures(
+	ends: number[],
+	ids: string[],
+	cache: FiguresCache,
+	token: string,
+	onProgress: (done: number, total: number) => void,
+): Promise<'done' | 'refused'> {
+	for (const [i, end] of ends.entries()) {
+		onProgress(i, ends.length);
+		try {
+			const until = new Date(end).toISOString();
+			const commits = (await getJson(
+				`${GITHUB_API}repos/${RELEASES_REPO}/commits?path=${PLUGIN_STATS}&until=${until}&per_page=1`,
+				token,
+			)) as { sha?: string }[];
+			const counts: Record<string, number> = {};
+			const sha = commits[0]?.sha;
+			if (sha) {
+				const file = (await getJson(`https://raw.githubusercontent.com/${RELEASES_REPO}/${sha}/${PLUGIN_STATS}`)) as StatsFile;
+				for (const id of ids) {
+					const entry = file[id];
+					const n = entry ? toCount(entry) : null;
+					if (n !== null) counts[id] = n;
+				}
+			}
+			cache[String(end)] = { ids, counts };
+		} catch (e) {
+			if (e instanceof HttpError) return 'refused';
+			throw e;
+		}
+	}
+	onProgress(ends.length, ends.length);
+	return 'done';
 }
 
 export interface ReportOptions {

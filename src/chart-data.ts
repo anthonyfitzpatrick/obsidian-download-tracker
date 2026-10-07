@@ -120,45 +120,65 @@ export function periodEnds(first: number, now: number): { ends: number[]; period
 	return { ends, period };
 }
 
-export interface PeriodLines {
-	ends: number[];
-	period: Period;
-	series: Series[];
+// Obsidian's plugin stats file as it stood at a period end, keyed by that time.
+// `ids` records which plugins were looked up, so a plugin added later is fetched again.
+export interface DailyFigures {
+	ids: string[];
+	counts: Record<string, number>;
+}
+export type FiguresCache = Record<string, DailyFigures>;
+
+export function earliestRelease(rows: Row[]): number | null {
+	const times = rows.flatMap((r) => r.versions.map((v) => v.published).filter((t): t is number => typeof t === 'number'));
+	return times.length > 0 ? Math.min(...times) : null;
 }
 
-// One line per project with a point at the end of every period: the running total of
-// downloads of the releases published by then. A release's downloads are placed at
-// its publish date. A line starts at the first period containing the project's first
-// release, and the last point, today, is the project's total.
-export function periodSeries(rows: Row[], slots: Map<string, string>, now: number): PeriodLines | null {
-	const dated = (r: Row) => r.versions.filter((v): v is VersionCount & { published: number } => typeof v.published === 'number');
-	const projects = rows.filter((r) => dated(r).length > 0);
-	if (projects.length === 0) return null;
-	const { ends, period } = periodEnds(Math.min(...projects.flatMap((r) => dated(r).map((v) => v.published))), now);
+export function missingFigures(ends: number[], ids: string[], cache: FiguresCache): number[] {
+	return ends.filter((end) => {
+		const entry = cache[String(end)];
+		return !entry || ids.some((id) => !entry.ids.includes(id));
+	});
+}
+
+// One line per project with a point at the end of every period: the project's real
+// total at that time. Plugins use Obsidian's daily figures; themes and other
+// repositories have no published history, so they use your saved snapshots. The
+// last point is today's count from the tables.
+export function periodSeries(
+	rows: Row[],
+	slots: Map<string, string>,
+	ends: number[],
+	figures: FiguresCache,
+	snapshots: Snapshot[],
+): Series[] {
 	const last = ends.length - 1;
+	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
+	const valueAt = (r: Row, end: number, i: number): number | undefined => {
+		if (i === last) return r.downloads ?? undefined;
+		if (r.kind === 'plugin') {
+			const daily = figures[String(end)]?.counts[r.id];
+			if (daily !== undefined) return daily;
+		}
+		const saved = ordered.filter((s) => s.fetchedAt <= end && s.counts[rowKey(r)] !== undefined).pop();
+		return saved?.counts[rowKey(r)];
+	};
 	const line = (group: Row[]): Point[] => {
-		const releases = group.flatMap(dated);
-		const firstRelease = Math.min(...releases.map((v) => v.published));
 		const points: Point[] = [];
 		ends.forEach((end, i) => {
-			const isOpen = i === last ? firstRelease > end : firstRelease >= end;
-			if (isOpen) return;
-			const value = releases
-				.filter((v) => (i === last ? v.published <= end : v.published < end))
-				.reduce((sum, v) => sum + v.downloads, 0);
-			points.push({ time: end, value });
+			const values = group.map((r) => valueAt(r, end, i)).filter((v): v is number => v !== undefined);
+			if (values.length > 0) points.push({ time: end, value: values.reduce((a, b) => a + b, 0) });
 		});
 		return points;
 	};
 	const series: Series[] = [];
 	const others: Row[] = [];
-	for (const r of projects) {
+	for (const r of rows) {
 		const cls = slots.get(rowKey(r)) ?? 'is-total';
 		if (cls === 'is-total') others.push(r);
 		else series.push({ id: rowKey(r), label: r.name, cls, points: line([r]) });
 	}
 	if (others.length > 0) series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: line(others) });
-	return { ends, period, series };
+	return series.filter((s) => s.points.length > 0);
 }
 
 // Round tick steps (1, 2 or 5 times a power of ten) so axis labels read cleanly.
