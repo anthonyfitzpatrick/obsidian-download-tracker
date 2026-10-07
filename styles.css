@@ -243,7 +243,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
-	column-gap: var(--size-4-3);
+	gap: 0 var(--size-4-3);
 	margin-bottom: var(--size-4-2);
 }
 
@@ -306,7 +306,7 @@
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	grid-template-rows: 11rem auto;
-	column-gap: var(--size-4-2);
+	gap: 0 var(--size-4-2);
 	padding-top: var(--size-4-2);
 }
 
@@ -473,21 +473,21 @@
 .download-tracker-line-stroke.is-slot-8 { stroke: var(--dt-slot-8); }
 
 .download-tracker-line-dot.is-slot-1,
-.download-tracker-swatch.is-slot-1 { background-color: var(--dt-slot-1); }
+.download-tracker-swatch.is-slot-1 { color: var(--dt-slot-1); }
 .download-tracker-line-dot.is-slot-2,
-.download-tracker-swatch.is-slot-2 { background-color: var(--dt-slot-2); }
+.download-tracker-swatch.is-slot-2 { color: var(--dt-slot-2); }
 .download-tracker-line-dot.is-slot-3,
-.download-tracker-swatch.is-slot-3 { background-color: var(--dt-slot-3); }
+.download-tracker-swatch.is-slot-3 { color: var(--dt-slot-3); }
 .download-tracker-line-dot.is-slot-4,
-.download-tracker-swatch.is-slot-4 { background-color: var(--dt-slot-4); }
+.download-tracker-swatch.is-slot-4 { color: var(--dt-slot-4); }
 .download-tracker-line-dot.is-slot-5,
-.download-tracker-swatch.is-slot-5 { background-color: var(--dt-slot-5); }
+.download-tracker-swatch.is-slot-5 { color: var(--dt-slot-5); }
 .download-tracker-line-dot.is-slot-6,
-.download-tracker-swatch.is-slot-6 { background-color: var(--dt-slot-6); }
+.download-tracker-swatch.is-slot-6 { color: var(--dt-slot-6); }
 .download-tracker-line-dot.is-slot-7,
-.download-tracker-swatch.is-slot-7 { background-color: var(--dt-slot-7); }
+.download-tracker-swatch.is-slot-7 { color: var(--dt-slot-7); }
 .download-tracker-line-dot.is-slot-8,
-.download-tracker-swatch.is-slot-8 { background-color: var(--dt-slot-8); }
+.download-tracker-swatch.is-slot-8 { color: var(--dt-slot-8); }
 
 .download-tracker-line-area.is-slot-1 { fill: var(--dt-slot-1); }
 .download-tracker-line-area.is-slot-2 { fill: var(--dt-slot-2); }
@@ -611,52 +611,22 @@
 	opacity: 1;
 }
 
-/* A shape per slot, on the line dots and the legend swatches, so no two projects look alike. */
+/* A shape per slot, on the line dots and the legend swatches, so no two projects look
+   alike. The shape is a small inline SVG filled with the slot colour. */
 .download-tracker-line-dot[class*='is-slot-'],
 .download-tracker-swatch[class*='is-slot-'] {
 	width: 10px;
 	height: 10px;
 	border-radius: 0;
+	background: none;
+	box-shadow: none;
 }
 
-.download-tracker-line-dot.is-slot-1,
-.download-tracker-swatch.is-slot-1 {
-	border-radius: 50%;
-}
-
-.download-tracker-line-dot.is-slot-2,
-.download-tracker-swatch.is-slot-2 {
-	border-radius: 1px;
-}
-
-.download-tracker-line-dot.is-slot-3,
-.download-tracker-swatch.is-slot-3 {
-	clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-
-.download-tracker-line-dot.is-slot-4,
-.download-tracker-swatch.is-slot-4 {
-	clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-}
-
-.download-tracker-line-dot.is-slot-5,
-.download-tracker-swatch.is-slot-5 {
-	clip-path: polygon(0 0, 100% 0, 50% 100%);
-}
-
-.download-tracker-line-dot.is-slot-6,
-.download-tracker-swatch.is-slot-6 {
-	clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%);
-}
-
-.download-tracker-line-dot.is-slot-7,
-.download-tracker-swatch.is-slot-7 {
-	clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
-}
-
-.download-tracker-line-dot.is-slot-8,
-.download-tracker-swatch.is-slot-8 {
-	clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
+.download-tracker-shape {
+	display: block;
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
 }
 
 /* About footer at the end of the settings, shared with the other Wolf 359 Press plugins. */

@@ -1,4 +1,5 @@
-import { Editor, Notice, Plugin, moment, normalizePath } from 'obsidian';
+import { Editor, Notice, Plugin, normalizePath } from 'obsidian';
+import { formatTime } from './dates';
 import {
 	Row,
 	Snapshot,
@@ -73,12 +74,11 @@ export default class DownloadTrackerPlugin extends Plugin {
 		return r && r.query === this.query() ? r : null;
 	}
 
-	// Obsidian sets moment's locale from its language, so 'll' and 'lll' follow it.
 	displayDate(time: number | null, withTime = false): string {
 		if (time === null) return 'n/a';
 		const pattern = this.settings.dateFormat.trim();
-		if (!pattern) return moment(time).format(withTime ? 'lll' : 'll');
-		return moment(time).format(withTime ? `${pattern} HH:mm` : pattern);
+		if (!pattern) return formatTime(time, withTime ? 'lll' : 'll');
+		return formatTime(time, withTime ? `${pattern} HH:mm` : pattern);
 	}
 
 	hasAccounts(): boolean {

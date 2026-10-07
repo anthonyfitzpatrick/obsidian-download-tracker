@@ -115,6 +115,8 @@ The plugin connects to these hosts only when you open the dashboard or its chart
 
 The plugin has no telemetry, analytics or accounts, and sends nothing about you or your vault anywhere. The requests above read public data, and your private repositories only if your token allows it. Apart from repository names, the only thing they carry is your GitHub token, if you set one, and only to `api.github.com`.
 
+The plugin writes to the clipboard only when you run **Copy summary to clipboard**, and never reads it.
+
 The GitHub token is stored in Obsidian's secret storage, not in the plugin's files. A classic token with no scopes is enough for public repositories, because the plugin only reads public data. To include private repositories, use a fine-grained token with read-only access; it can read those repositories' code if it leaks, but it can't change anything.
 
 ## What the plugin stores

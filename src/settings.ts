@@ -1,4 +1,5 @@
-import { App, PluginSettingTab, SecretComponent, Setting, moment, setIcon } from 'obsidian';
+import { App, PluginSettingTab, SecretComponent, Setting, setIcon } from 'obsidian';
+import { languageDatePattern } from './dates';
 import type DownloadTrackerPlugin from './main';
 
 export interface DownloadTrackerSettings {
@@ -258,7 +259,7 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 		describeDate();
 		dateSetting.addText((text) =>
 			text
-				.setPlaceholder(moment().localeData().longDateFormat('ll'))
+				.setPlaceholder(languageDatePattern())
 				.setValue(settings.dateFormat)
 				.onChange(async (value) => {
 					settings.dateFormat = value;

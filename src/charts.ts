@@ -1,4 +1,5 @@
-import { DropdownComponent, moment, setTooltip } from 'obsidian';
+import { DropdownComponent, setTooltip } from 'obsidian';
+import { formatTime } from './dates';
 import {
 	ChartFilter,
 	FiguresCache,
@@ -204,7 +205,7 @@ function legend(
 	const el = parent.createDiv({ cls: 'download-tracker-legend' });
 	for (const item of items) {
 		const entry = el.createSpan({ cls: 'download-tracker-legend-item' });
-		entry.createSpan({ cls: `download-tracker-swatch ${item.cls}` });
+		shape(entry.createSpan({ cls: `download-tracker-swatch ${item.cls}` }), item.cls);
 		entry.createSpan({ text: item.label });
 		// Picking out one line fades the others, so it can be followed through crossings.
 		entry.tabIndex = 0;
@@ -221,6 +222,26 @@ function legend(
 		entry.addEventListener('focus', on);
 		entry.addEventListener('blur', off);
 	}
+}
+
+// One shape per colour slot, in a 10 by 10 box: circle, square, triangle, diamond,
+// downward triangle, pentagon, hexagon and plus.
+const SHAPES: Record<string, { tag: 'circle' | 'rect' | 'polygon'; attr: Record<string, string> }> = {
+	'is-slot-1': { tag: 'circle', attr: { cx: '5', cy: '5', r: '5' } },
+	'is-slot-2': { tag: 'rect', attr: { x: '0.5', y: '0.5', width: '9', height: '9', rx: '1' } },
+	'is-slot-3': { tag: 'polygon', attr: { points: '5,0 10,10 0,10' } },
+	'is-slot-4': { tag: 'polygon', attr: { points: '5,0 10,5 5,10 0,5' } },
+	'is-slot-5': { tag: 'polygon', attr: { points: '0,0 10,0 5,10' } },
+	'is-slot-6': { tag: 'polygon', attr: { points: '5,0 10,3.8 8.2,10 1.8,10 0,3.8' } },
+	'is-slot-7': { tag: 'polygon', attr: { points: '2.5,0 7.5,0 10,5 7.5,10 2.5,10 0,5' } },
+	'is-slot-8': { tag: 'polygon', attr: { points: '3.5,0 6.5,0 6.5,3.5 10,3.5 10,6.5 6.5,6.5 6.5,10 3.5,10 3.5,6.5 0,6.5 0,3.5 3.5,3.5' } },
+};
+
+function shape(el: HTMLElement, cls: string): void {
+	const def = SHAPES[cls];
+	if (!def) return;
+	const svg = el.createSvg('svg', { attr: { viewBox: '0 0 10 10', 'aria-hidden': 'true' }, cls: 'download-tracker-shape' });
+	svg.createSvg(def.tag, { attr: def.attr });
 }
 
 function focusable(el: HTMLElement, tip: string): void {
@@ -262,9 +283,9 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	const daily = periods.period === 'day' || periods.period === 'week';
 	// A period's end is the start of the next one, so it is named by its last day or month.
 	const pointLabel = (t: number, i: number) =>
-		isToday(i) ? 'Today' : daily ? date(t - 1) : moment(t - 1).format('MMM YYYY');
+		isToday(i) ? 'Today' : daily ? date(t - 1) : formatTime(t - 1, 'MMM YYYY');
 	// Axis labels are short so several fit; tooltips carry the full date.
-	const axisLabel = (t: number, i: number) => (isToday(i) ? 'Today' : moment(t - 1).format(daily ? 'D MMM' : 'MMM YY'));
+	const axisLabel = (t: number, i: number) => (isToday(i) ? 'Today' : formatTime(t - 1, daily ? 'D MMM' : 'MMM YY'));
 
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
 	const marks = new Map<string, Element[]>();
@@ -332,6 +353,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		}
 		for (const p of s.points) {
 			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}${p.estimated ? ' is-estimated' : ''}` });
+			shape(dot, s.cls);
 			place(dot, x(p.time), y(p.value));
 			own.push(dot);
 		}
