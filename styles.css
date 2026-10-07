@@ -553,3 +553,58 @@
 	width: 16px;
 	border-top: 2px dashed var(--text-muted);
 }
+
+/* Release ticks: a 24px hit area around a 3 by 8px tick in the project's colour. */
+.download-tracker-markers {
+	grid-column: 2;
+	position: relative;
+	height: 12px;
+}
+
+.download-tracker-marker {
+	position: absolute;
+	top: 0;
+	width: 24px;
+	height: 12px;
+	transform: translateX(-50%);
+}
+
+.download-tracker-marker::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 2px;
+	width: 3px;
+	height: 8px;
+	transform: translateX(-50%);
+	border-radius: 1px;
+	background-color: var(--text-muted);
+}
+
+.download-tracker-marker.is-slot-1::after { background-color: var(--dt-slot-1); }
+.download-tracker-marker.is-slot-2::after { background-color: var(--dt-slot-2); }
+.download-tracker-marker.is-slot-3::after { background-color: var(--dt-slot-3); }
+.download-tracker-marker.is-slot-4::after { background-color: var(--dt-slot-4); }
+.download-tracker-marker.is-slot-5::after { background-color: var(--dt-slot-5); }
+.download-tracker-marker.is-slot-6::after { background-color: var(--dt-slot-6); }
+.download-tracker-marker.is-slot-7::after { background-color: var(--dt-slot-7); }
+.download-tracker-marker.is-slot-8::after { background-color: var(--dt-slot-8); }
+.download-tracker-marker.is-total::after { background-color: var(--dt-total); }
+
+.download-tracker-marker:hover::after,
+.download-tracker-marker:focus-visible::after {
+	height: 10px;
+	width: 4px;
+}
+
+.download-tracker-marker:focus-visible {
+	outline: none;
+}
+
+.download-tracker-line.has-highlight .download-tracker-marker {
+	opacity: 0.2;
+}
+
+.download-tracker-line.has-highlight .download-tracker-marker.is-highlighted {
+	opacity: 1;
+}

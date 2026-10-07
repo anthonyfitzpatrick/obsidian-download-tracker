@@ -13,6 +13,9 @@ import {
 	earliestRelease,
 	rangeEnds,
 	periodSeries,
+	gainSeries,
+	releasesIn,
+	Release,
 	projectSlots,
 	kindMatches,
 	nameMatches,
@@ -132,7 +135,9 @@ function drawCharts(
 		empty(parent, 'There is no history to draw yet. Save a snapshot to start.');
 		return;
 	}
-	const axis = { ...rangeEnds(filter.range, startAt, current.time), zero: filter.range === 'all' };
+	const axis: PeriodAxis = { ...rangeEnds(filter.range, startAt, current.time), zero: filter.range === 'all', live: true };
+	const slots = projectSlots(all, filter.kind);
+	const releases = releasesIn(rows, slots, axis.start, current.time);
 	past.ensure(
 		axis.ends.slice(0, -1),
 		group.filter((r) => r.kind === 'plugin').map((r) => r.id),
@@ -146,9 +151,19 @@ function drawCharts(
 		`One line per project, with a point at the end of each period in the chosen range. ${sources} Hover over a name in the legend to pick out its line, or over a period to see every value.`,
 	);
 	if (past.progress) projects.createEl('p', { text: past.progress, cls: 'download-tracker-chart-note' });
-	const perProject = periodSeries(rows, projectSlots(all, filter.kind), axis.ends, past.figures, snapshots);
+	const perProject = periodSeries(rows, slots, axis.ends, past.figures, snapshots);
 	if (perProject.length === 0) empty(projects, 'No download counts are available.');
-	else lines(projects, perProject, date, axis);
+	else lines(projects, perProject, date, axis, releases);
+
+	const gains = card(
+		parent,
+		'New downloads per period',
+		'One line per project: the downloads gained in each complete period, so you can see whether a project is speeding up or slowing down. The period still running is left out, and so are estimated totals, so themes appear as your snapshots build up. Ticks under the axis mark releases; hover over one to see which.',
+	);
+	const completed: PeriodAxis = { ...axis, ends: axis.ends.slice(0, -1), zero: true, live: false };
+	const perPeriod = gainSeries(perProject, axis.ends);
+	if (perPeriod.length === 0) empty(gains, 'This needs two complete periods with recorded totals. Try a longer range.');
+	else lines(gains, perPeriod, date, completed, releases.filter((r) => r.time <= (completed.ends[completed.ends.length - 1] ?? 0)));
 
 	const totals = card(
 		parent,
@@ -218,15 +233,18 @@ function focusable(el: HTMLElement, tip: string): void {
 }
 
 interface PeriodAxis {
+	start: number;
 	ends: number[];
 	period: Period;
+	// True when the last point is now rather than the end of a period.
+	live: boolean;
 	// All time starts at zero; shorter ranges start near the lowest value so growth shows.
 	zero: boolean;
 }
 
 // Without periods, x is proportional to time. With periods, the points are evenly
 // spaced, one per period, and every period is labelled where there is room.
-function lines(parent: HTMLElement, series: Series[], date: DateFormatter, periods?: PeriodAxis): void {
+function lines(parent: HTMLElement, series: Series[], date: DateFormatter, periods?: PeriodAxis, releases: Release[] = []): void {
 	const times = periods ?? { ends: [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b) };
 	const all = times.ends;
 	const values = series.flatMap((s) => s.points.map((p) => p.value));
@@ -244,12 +262,12 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	// A period's end is the start of the next one, so it is named by its last day or month.
 	const pointLabel = (t: number, i: number) => {
 		if (!periods) return date(t, true);
-		if (i === all.length - 1) return 'Today';
+		if (periods.live && i === all.length - 1) return 'Today';
 		return periods.period === 'day' || periods.period === 'week' ? date(t - 1) : moment(t - 1).format('MMM YYYY');
 	};
 	// Axis labels are short so several fit; tooltips carry the full date.
 	const axisLabel = (t: number, i: number) => {
-		if (i === all.length - 1) return 'Today';
+		if (periods?.live && i === all.length - 1) return 'Today';
 		return moment(t - 1).format(periods?.period === 'day' || periods?.period === 'week' ? 'D MMM' : 'MMM YY');
 	};
 
@@ -352,6 +370,8 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		endLabels.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${top}%`;
 	}
 
+	if (periods && releases.length > 0) markers(frame, releases, periods, x, date, marks);
+
 	if (periods) {
 		// Label every period that fits: up to ten on a wide pane, three on a narrow one.
 		const xAxis = frame.createDiv({ cls: 'download-tracker-line-x is-periods' });
@@ -378,5 +398,45 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		const item = key.createSpan({ cls: 'download-tracker-legend-item' });
 		item.createSpan({ cls: 'download-tracker-dash-key' });
 		item.createSpan({ text: 'Estimated: no record exists for these dates' });
+	}
+}
+
+// Release ticks under the plot, placed by date between the period points. Releases
+// on the same spot share one tick; it takes the project's colour, or grey if mixed.
+function markers(
+	frame: HTMLElement,
+	releases: Release[],
+	periods: PeriodAxis,
+	x: (t: number) => number,
+	date: DateFormatter,
+	marks: Map<string, Element[]>,
+): void {
+	const ends = periods.ends;
+	const at = (t: number): number => {
+		const i = ends.findIndex((e) => e >= t);
+		if (i === -1) return x(ends[ends.length - 1] ?? t);
+		const end = ends[i] ?? t;
+		const prev = i > 0 ? (ends[i - 1] ?? periods.start) : periods.start;
+		const step = i > 0 ? x(end) - x(prev) : (x(ends[1] ?? end) - x(end)) || 0;
+		const from = i > 0 ? x(prev) : x(end) - step;
+		const share = end > prev ? (t - prev) / (end - prev) : 1;
+		return Math.max(0, from + share * step);
+	};
+	const groups: { left: number; items: Release[] }[] = [];
+	for (const r of releases) {
+		const left = at(r.time);
+		const group = groups.find((g) => Math.abs(g.left - left) < 1);
+		if (group) group.items.push(r);
+		else groups.push({ left, items: [r] });
+	}
+	const strip = frame.createDiv({ cls: 'download-tracker-markers' });
+	for (const g of groups) {
+		const ids = new Set(g.items.map((r) => r.id));
+		const first = g.items[0];
+		const cls = ids.size === 1 && first ? first.cls : 'is-mixed';
+		const tick = strip.createDiv({ cls: `download-tracker-marker ${cls}` });
+		tick.style.left = `${g.left}%`;
+		focusable(tick, g.items.map((r) => `${r.project} ${r.version}, ${date(r.time)}`).join('; '));
+		for (const id of ids) marks.set(id, [...(marks.get(id) ?? []), tick]);
 	}
 }

@@ -99,8 +99,8 @@ function dayEnds(start: number, now: number, step: number): number[] {
 // The chart's points for a range: daily for the last 7 days, every 3 days for the
 // last month, weekly for the last quarter, monthly for the last year. A range that
 // reaches back before the first release starts at the first release instead.
-export function rangeEnds(range: Range, first: number, now: number): { ends: number[]; period: Period } {
-	if (range === 'all') return periodEnds(first, now);
+export function rangeEnds(range: Range, first: number, now: number): { start: number; ends: number[]; period: Period } {
+	if (range === 'all') return { start: first, ...periodEnds(first, now) };
 	const back = new Date(now);
 	const from =
 		range === 'week'
@@ -119,10 +119,10 @@ export function rangeEnds(range: Range, first: number, now: number): { ends: num
 			if (t >= now) break;
 			ends.push(t);
 		}
-		return { ends: [...ends, now], period: 'month' };
+		return { start, ends: [...ends, now], period: 'month' };
 	}
 	const step = range === 'week' ? 1 : range === 'month' ? 3 : 7;
-	return { ends: [...dayEnds(start, now, step), now], period: range === 'quarter' ? 'week' : 'day' };
+	return { start, ends: [...dayEnds(start, now, step), now], period: range === 'quarter' ? 'week' : 'day' };
 }
 
 // Obsidian's plugin stats file as it stood at a period end, keyed by that time.
@@ -255,6 +255,50 @@ export function periodTotals(
 		if (of(kind).length > 0) series.push(make(kind, labels[kind], `is-${kind}`, of(kind)));
 	}
 	return series.filter((s) => s.points.length > 0);
+}
+
+// Downloads gained in each period, from the running totals. Only complete periods:
+// the last one is still running, and its total is GitHub's live count while the
+// others are Obsidian's figures, which lag, so including it would show a false jump.
+// A gain needs both ends recorded and next to each other; estimates give none.
+export function gainSeries(series: Series[], ends: number[]): Series[] {
+	const index = new Map(ends.map((t, i) => [t, i]));
+	const lastEnd = ends[ends.length - 1];
+	return series
+		.map((s) => {
+			const points: Point[] = [];
+			s.points.forEach((p, i) => {
+				const prev = s.points[i - 1];
+				if (!prev || p.time === lastEnd || p.estimated || prev.estimated) return;
+				if ((index.get(p.time) ?? 0) - (index.get(prev.time) ?? 0) !== 1) return;
+				points.push({ time: p.time, value: p.value - prev.value });
+			});
+			return { ...s, points };
+		})
+		.filter((s) => s.points.length > 0);
+}
+
+export interface Release {
+	time: number;
+	project: string;
+	version: string;
+	cls: string;
+	id: string;
+}
+
+// Published releases of the shown projects inside the range, oldest first.
+export function releasesIn(rows: Row[], slots: Map<string, string>, start: number, now: number): Release[] {
+	return rows
+		.flatMap((r) =>
+			r.versions
+				.filter((v): v is typeof v & { published: number } => typeof v.published === 'number')
+				.filter((v) => v.published >= start && v.published <= now)
+				.map((v) => {
+					const cls = slots.get(rowKey(r)) ?? 'is-total';
+					return { time: v.published, project: r.name, version: v.version, cls, id: cls === 'is-total' ? 'other' : rowKey(r) };
+				}),
+		)
+		.sort((a, b) => a.time - b.time);
 }
 
 // Round tick steps (1, 2 or 5 times a power of ten) so axis labels read cleanly.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, rangeEnds, periodSeries, periodTotals, projectSlots } from '../src/chart-data';
+import { kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, rangeEnds, periodSeries, periodTotals, projectSlots, gainSeries, releasesIn } from '../src/chart-data';
 import type { FiguresCache } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
@@ -151,6 +151,40 @@ describe('periodTotals', () => {
 
 	it('draws one line for a single type', () => {
 		expect(periodTotals([plugin, theme], 'theme', ends, figures, saved).map((s) => s.id)).toEqual(['theme']);
+	});
+});
+
+describe('gainSeries', () => {
+	const ends = [10, 20, 30, 40, 50];
+	const base = { id: 'p', label: 'P', cls: 'is-slot-1' };
+
+	it('gives the gain in each complete period and leaves out the running one', () => {
+		const series = gainSeries([{ ...base, points: [{ time: 10, value: 5 }, { time: 20, value: 12 }, { time: 30, value: 20 }, { time: 50, value: 40 }] }], ends);
+		expect(series[0]?.points).toEqual([
+			{ time: 20, value: 7 },
+			{ time: 30, value: 8 },
+		]);
+	});
+
+	it('gives no gain across a gap or an estimate', () => {
+		const series = gainSeries(
+			[{ ...base, points: [{ time: 10, value: 1, estimated: true }, { time: 20, value: 4 }, { time: 40, value: 9 }] }],
+			ends,
+		);
+		expect(series).toEqual([]);
+	});
+});
+
+describe('releasesIn', () => {
+	it('lists published releases inside the range, oldest first, in the project colour', () => {
+		const a = row('plugin', 'a', 'Alpha', 30);
+		a.versions = [
+			{ version: '1.1.0', downloads: 20, published: 300 },
+			{ version: '1.0.0', downloads: 10, published: 100 },
+			{ version: '1.2.0', downloads: 0, published: null },
+		];
+		const releases = releasesIn([a], projectSlots([a], 'all'), 150, 1000);
+		expect(releases).toEqual([{ time: 300, project: 'Alpha', version: '1.1.0', cls: 'is-slot-1', id: 'plugin:a' }]);
 	});
 });
 
