@@ -630,6 +630,12 @@
 }
 
 /* About footer at the end of the settings, shared with the other Wolf 359 Press plugins. */
+.download-tracker-about-row {
+	display: block;
+	border-top: 0;
+	padding-top: 0;
+}
+
 .download-tracker-about {
 	display: flex;
 	flex-wrap: wrap;

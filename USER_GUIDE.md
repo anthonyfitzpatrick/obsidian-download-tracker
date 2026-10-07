@@ -21,7 +21,7 @@ When you first open the dashboard, it asks for a GitHub username, because it doe
 
 ![The dashboard before setup, asking for a GitHub username](docs/images/dashboard-first-run.png)
 
-1. Open **Settings → Download Tracker**. The settings are grouped under four headings: Accounts, Updates and snapshots, Dashboard, and Dates and export.
+1. Open **Settings → Download Tracker**. The settings are grouped under four headings: Accounts, Updates and snapshots, Dashboard, and Dates and export. You can also find any of them with Obsidian's settings search, for example by typing "cache duration".
 2. Under **Accounts → GitHub usernames**, enter the GitHub account your plugins and themes are published from. For several accounts, separate them with commas.
 3. If a plugin or theme of yours is published from an account that isn't listed, add it under **Extra repositories** as `owner/repo`, one per line. A plugin or theme found this way is counted like your own. A repository that isn't in Obsidian's community lists appears in a separate table of other repositories.
 4. Optionally, add a GitHub token. See [Add a GitHub token](#add-a-github-token).

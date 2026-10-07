@@ -62,7 +62,7 @@ The [user guide](USER_GUIDE.md) has a screenshot for every part of the plugin.
 
 ## Requirements
 
-- Obsidian 1.11.4 or later, on desktop or mobile. The plugin keeps your GitHub token in Obsidian's secret storage, which arrived in 1.11.4.
+- Obsidian 1.13.0 or later, on desktop or mobile. The plugin keeps your GitHub token in Obsidian's secret storage, and describes its settings with Obsidian's declarative settings API, which puts them in Obsidian's settings search.
 - At least one plugin or theme in Obsidian's community directory, or a GitHub repository with releases.
 - A GitHub token is optional. Without one, GitHub allows 60 requests an hour from your network, which is enough for a handful of plugins. A token raises that to 5,000.
 
