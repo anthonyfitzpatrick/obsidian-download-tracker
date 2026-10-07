@@ -8,9 +8,20 @@ export interface Point {
 
 export type KindFilter = 'all' | Kind;
 
+export type Range = 'week' | 'month' | 'quarter' | 'year' | 'all';
+
+export const RANGES: { range: Range; label: string }[] = [
+	{ range: 'week', label: 'Last 7 days' },
+	{ range: 'month', label: 'Last month' },
+	{ range: 'quarter', label: 'Last quarter' },
+	{ range: 'year', label: 'Last year' },
+	{ range: 'all', label: 'All time' },
+];
+
 export interface ChartFilter {
 	kind: KindFilter;
 	query: string;
+	range: Range;
 }
 
 // "All" means plugins and themes: release-file counts of other repositories mean something else.
@@ -49,7 +60,7 @@ export function projectSlots(rows: Row[], kind: KindFilter): Map<string, string>
 	return new Map(group.map((r, i) => [rowKey(r), i < coloured ? `is-slot-${i + 1}` : 'is-total']));
 }
 
-export type Period = 'week' | 'month' | 'quarter';
+export type Period = 'day' | 'week' | 'month' | 'quarter';
 
 // Period boundaries from the earliest publication to now: weekly for up to four
 // months, monthly for up to two years, quarterly beyond. The last period ends now.
@@ -72,6 +83,46 @@ export function periodEnds(first: number, now: number): { ends: number[]; period
 	}
 	ends.push(now);
 	return { ends, period };
+}
+
+const DAY = 86_400_000;
+
+function dayEnds(start: number, now: number, step: number): number[] {
+	const s = new Date(start);
+	const ends: number[] = [];
+	for (let t = new Date(s.getFullYear(), s.getMonth(), s.getDate()).getTime() + step * DAY; t < now; t += step * DAY) {
+		ends.push(t);
+	}
+	return ends;
+}
+
+// The chart's points for a range: daily for the last 7 days, every 3 days for the
+// last month, weekly for the last quarter, monthly for the last year. A range that
+// reaches back before the first release starts at the first release instead.
+export function rangeEnds(range: Range, first: number, now: number): { ends: number[]; period: Period } {
+	if (range === 'all') return periodEnds(first, now);
+	const back = new Date(now);
+	const from =
+		range === 'week'
+			? now - 7 * DAY
+			: range === 'month'
+				? new Date(back.getFullYear(), back.getMonth() - 1, back.getDate()).getTime()
+				: range === 'quarter'
+					? new Date(back.getFullYear(), back.getMonth() - 3, back.getDate()).getTime()
+					: new Date(back.getFullYear() - 1, back.getMonth(), back.getDate()).getTime();
+	const start = Math.max(from, first);
+	if (range === 'year') {
+		const s = new Date(start);
+		const ends: number[] = [];
+		for (let m = s.getMonth() + 1; ; m++) {
+			const t = new Date(s.getFullYear(), m, 1).getTime();
+			if (t >= now) break;
+			ends.push(t);
+		}
+		return { ends: [...ends, now], period: 'month' };
+	}
+	const step = range === 'week' ? 1 : range === 'month' ? 3 : 7;
+	return { ends: [...dayEnds(start, now, step), now], period: range === 'quarter' ? 'week' : 'day' };
 }
 
 // Obsidian's plugin stats file as it stood at a period end, keyed by that time.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, periodSeries, periodTotals, projectSlots } from '../src/chart-data';
+import { kindMatches, nameMatches, niceTicks, missingFigures, periodEnds, rangeEnds, periodSeries, periodTotals, projectSlots } from '../src/chart-data';
 import type { FiguresCache } from '../src/chart-data';
 import type { Row, Snapshot } from '../src/counts';
 
@@ -54,6 +54,32 @@ describe('periodEnds', () => {
 		const { ends, period } = periodEnds(new Date(2025, 8, 15).getTime(), new Date(2026, 2, 10).getTime());
 		expect(period).toBe('month');
 		expect(ends.slice(0, 2)).toEqual([new Date(2025, 9, 1).getTime(), new Date(2025, 10, 1).getTime()]);
+	});
+});
+
+describe('rangeEnds', () => {
+	const now = new Date(2026, 9, 7, 10, 30).getTime();
+	const first = new Date(2026, 6, 4, 21, 0).getTime();
+
+	it('gives daily points for the last 7 days, ending now', () => {
+		const { ends, period } = rangeEnds('week', first, now);
+		expect(period).toBe('day');
+		expect(ends.length).toBe(8);
+		expect(ends[0]).toBe(new Date(2026, 8, 31).getTime());
+		expect(ends[ends.length - 1]).toBe(now);
+	});
+
+	it('gives a point every 3 days for the last month and weekly for the last quarter', () => {
+		expect(rangeEnds('month', first, now).ends.slice(0, 2)).toEqual([new Date(2026, 8, 10).getTime(), new Date(2026, 8, 13).getTime()]);
+		const quarter = rangeEnds('quarter', first, now);
+		expect(quarter.period).toBe('week');
+		expect(quarter.ends[0]).toBe(new Date(2026, 6, 14).getTime());
+	});
+
+	it('starts at the first release when the range reaches back further', () => {
+		const { ends, period } = rangeEnds('year', first, now);
+		expect(period).toBe('month');
+		expect(ends).toEqual([new Date(2026, 7, 1).getTime(), new Date(2026, 8, 1).getTime(), new Date(2026, 9, 1).getTime(), now]);
 	});
 });
 

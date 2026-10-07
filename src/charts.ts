@@ -1,15 +1,17 @@
-import { moment, setTooltip } from 'obsidian';
+import { DropdownComponent, moment, setTooltip } from 'obsidian';
 import {
 	ChartFilter,
 	Current,
 	FiguresCache,
 	KindFilter,
+	RANGES,
+	Range,
 	Series,
 	periodTotals,
 	Period,
 	Point,
 	earliestRelease,
-	periodEnds,
+	rangeEnds,
 	periodSeries,
 	projectSlots,
 	kindMatches,
@@ -50,6 +52,15 @@ export function renderCharts(
 	if (!options.some((o) => o.kind === filter.kind)) filter.kind = 'all';
 
 	const controls = parent.createDiv({ cls: 'download-tracker-filters' });
+	// The date range comes first: it is the filter people reach for most.
+	const range = new DropdownComponent(controls);
+	for (const r of RANGES) range.addOption(r.range, r.label);
+	range.selectEl.setAttr('aria-label', 'Date range');
+	range.setValue(filter.range).onChange((value) => {
+		filter.range = value as Range;
+		onFilter(filter);
+		draw();
+	});
 	const chipBar = controls.createDiv({ cls: 'download-tracker-chips', attr: { role: 'radiogroup', 'aria-label': 'Show' } });
 	const search = controls.createEl('input', {
 		cls: 'download-tracker-search',
@@ -121,7 +132,7 @@ function drawCharts(
 		empty(parent, 'There is no history to draw yet. Save a snapshot to start.');
 		return;
 	}
-	const axis = periodEnds(startAt, current.time);
+	const axis = { ...rangeEnds(filter.range, startAt, current.time), zero: filter.range === 'all' };
 	past.ensure(
 		axis.ends.slice(0, -1),
 		group.filter((r) => r.kind === 'plugin').map((r) => r.id),
@@ -132,7 +143,7 @@ function drawCharts(
 	const projects = card(
 		parent,
 		'Downloads by project',
-		`One line per project, with a point at the end of each period from the earliest release to today. ${sources} Hover over a name in the legend to pick out its line, or over a period to see every value.`,
+		`One line per project, with a point at the end of each period in the chosen range. ${sources} Hover over a name in the legend to pick out its line, or over a period to see every value.`,
 	);
 	if (past.progress) projects.createEl('p', { text: past.progress, cls: 'download-tracker-chart-note' });
 	const perProject = periodSeries(rows, projectSlots(all, filter.kind), axis.ends, past.figures, snapshots);
@@ -209,6 +220,8 @@ function focusable(el: HTMLElement, tip: string): void {
 interface PeriodAxis {
 	ends: number[];
 	period: Period;
+	// All time starts at zero; shorter ranges start near the lowest value so growth shows.
+	zero: boolean;
 }
 
 // Without periods, x is proportional to time. With periods, the points are evenly
@@ -217,7 +230,7 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	const times = periods ?? { ends: [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b) };
 	const all = times.ends;
 	const values = series.flatMap((s) => s.points.map((p) => p.value));
-	const ticks = niceTicks(Math.min(0, ...values), Math.max(...values));
+	const ticks = niceTicks(periods && !periods.zero ? Math.min(...values) : Math.min(0, ...values), Math.max(...values));
 	const low = ticks[0] ?? 0;
 	const high = ticks[ticks.length - 1] ?? 1;
 	const first = all[0] ?? 0;
@@ -232,12 +245,12 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	const pointLabel = (t: number, i: number) => {
 		if (!periods) return date(t, true);
 		if (i === all.length - 1) return 'Today';
-		return periods.period === 'week' ? date(t - 1) : moment(t - 1).format('MMM YYYY');
+		return periods.period === 'day' || periods.period === 'week' ? date(t - 1) : moment(t - 1).format('MMM YYYY');
 	};
 	// Axis labels are short so several fit; tooltips carry the full date.
 	const axisLabel = (t: number, i: number) => {
 		if (i === all.length - 1) return 'Today';
-		return moment(t - 1).format(periods?.period === 'week' ? 'D MMM' : 'MMM YY');
+		return moment(t - 1).format(periods?.period === 'day' || periods?.period === 'week' ? 'D MMM' : 'MMM YY');
 	};
 
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
@@ -364,6 +377,6 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		const key = parent.createDiv({ cls: 'download-tracker-legend download-tracker-estimate-key' });
 		const item = key.createSpan({ cls: 'download-tracker-legend-item' });
 		item.createSpan({ cls: 'download-tracker-dash-key' });
-		item.createSpan({ text: 'Estimated: no record exists for these weeks' });
+		item.createSpan({ text: 'Estimated: no record exists for these dates' });
 	}
 }

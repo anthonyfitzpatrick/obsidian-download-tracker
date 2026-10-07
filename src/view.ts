@@ -1,5 +1,5 @@
 import { ItemView, ViewStateResult, WorkspaceLeaf } from 'obsidian';
-import { ChartFilter } from './chart-data';
+import { ChartFilter, RANGES } from './chart-data';
 import { renderCharts } from './charts';
 import {
 	KIND_LABELS,
@@ -33,7 +33,7 @@ export class DashboardView extends ItemView {
 	private saveButton!: HTMLButtonElement;
 	private bodyEl: HTMLElement | null = null;
 	private tab: Tab = 'tables';
-	private chartFilter: ChartFilter = { kind: 'all', query: '' };
+	private chartFilter: ChartFilter = { kind: 'all', query: '', range: 'all' };
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -56,16 +56,19 @@ export class DashboardView extends ItemView {
 
 	// Saved with the workspace, so the dashboard reopens on the tab last used.
 	getState(): Record<string, unknown> {
-		return { ...super.getState(), tab: this.tab, chartKind: this.chartFilter.kind, chartQuery: this.chartFilter.query };
+		const { kind, query, range } = this.chartFilter;
+		return { ...super.getState(), tab: this.tab, chartKind: kind, chartQuery: query, chartRange: range };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
-		const saved = (state ?? {}) as { tab?: unknown; chartKind?: unknown; chartQuery?: unknown };
+		const saved = (state ?? {}) as { tab?: unknown; chartKind?: unknown; chartQuery?: unknown; chartRange?: unknown };
 		if (saved.tab === 'tables' || saved.tab === 'charts') this.tab = saved.tab;
 		if (saved.chartKind === 'all' || saved.chartKind === 'plugin' || saved.chartKind === 'theme' || saved.chartKind === 'repo') {
 			this.chartFilter.kind = saved.chartKind;
 		}
 		if (typeof saved.chartQuery === 'string') this.chartFilter.query = saved.chartQuery;
+		const range = RANGES.find((r) => r.range === saved.chartRange);
+		if (range) this.chartFilter.range = range.range;
 		await super.setState(state, result);
 		this.render();
 	}

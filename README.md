@@ -14,7 +14,7 @@ An Obsidian plugin that shows the download counts of the community plugins and t
 - Optionally shows the number of open issues and open pull requests in each repository.
 - Links each name to its repository on GitHub. This can be turned off.
 - Saves snapshots of the counts in the plugin's data, by command or automatically once a day, and writes the snapshot history to a note as a Markdown table.
-- Draws charts on a separate tab, filtered by type and name: downloads by project with one line per project from the earliest release, using Obsidian's published daily figures for plugins and total downloads over time (plugins, themes and both combined). The charts are plain HTML and SVG drawn by the plugin; no other plugin or chart library is needed.
+- Draws charts on a separate tab, filtered by date range (last 7 days, month, quarter, year or all time), type and name: downloads by project with one line per project from the earliest release, using Obsidian's published daily figures for plugins and total downloads over time (plugins, themes and both combined). The charts are plain HTML and SVG drawn by the plugin; no other plugin or chart library is needed.
 - Copies a plain-text summary to the clipboard, or inserts a summary table into the current note.
 
 It shows nothing else about your repositories beyond the optional columns described below. Stars are shown as they are now; snapshots record downloads only.
@@ -56,7 +56,7 @@ Limits:
 
 The plugin connects to these hosts only when you open the dashboard, run a command that needs counts, or turn on refresh at startup:
 
-- `raw.githubusercontent.com`: Obsidian's community plugin list, theme list and plugin stats file, from the `obsidianmd/obsidian-releases` repository. For the Downloads by project chart it also reads past versions of the stats file, one per week, month or quarter shown. Each is about 2 MB, so the first time the chart opens it can download a few tens of megabytes. Only your plugins' numbers are kept, and each date is fetched once.
+- `raw.githubusercontent.com`: Obsidian's community plugin list, theme list and plugin stats file, from the `obsidianmd/obsidian-releases` repository. For the charts it also reads past versions of the stats file, one for each date shown (daily for the last 7 days, every 3 days for the last month, then weekly or monthly). Each is about 2 MB, so the first time the chart opens it can download a few tens of megabytes. Only your plugins' numbers are kept, and each date is fetched once.
 - `api.github.com`: the commit history of Obsidian's stats file, to find its version at each date; the release list of each of your plugins and other repositories, and of each theme, to read download counts and release dates, and, if you turn on stars, each repository's star count. If you set a token, it is sent only to this host.
 - `releases.obsidian.md`: Obsidian's theme download statistics, for themes without GitHub release counts.
 
