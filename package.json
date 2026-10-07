@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-download-tracker",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Shows download counts for the Obsidian plugins and themes you publish, with dated snapshots.",
 	"main": "main.js",
 	"type": "module",
