@@ -13,6 +13,7 @@ This guide is organised by task. Each section says what to do, what you will see
 - [Share the current counts](#share-the-current-counts)
 - [Settings reference](#settings-reference)
 - [Troubleshooting](#troubleshooting)
+- [Report a bug or request a feature](#report-a-bug-or-request-a-feature)
 
 ## Set up
 
@@ -258,6 +259,8 @@ It creates the folder if needed. The note is replaced on every export, so keep y
 | Date format | empty | A moment.js pattern for dates on the dashboard, such as `DD-MM-YYYY` for 06-10-2026 or `DD-MMM-YYYY` for 06-Oct-2026. Empty follows your Obsidian language. The setting shows today's date in the chosen format. Exports and summaries always use `YYYY-MM-DD HH:mm`. |
 | Export note | `Download history.md` | Where the snapshot history is written. |
 
+At the bottom of the settings is an About panel with the plugin's version and links: Report a bug, Request a feature, the author's site, wolf359.app, wolf359.press and Buy me a coffee. Each opens in your browser.
+
 ## Troubleshooting
 
 **"Add your GitHub username in this plugin's settings to see download counts."**
@@ -301,3 +304,7 @@ There is no record of that theme's downloads for those dates, so the line is an 
 
 **Start over.**
 Close Obsidian and delete `.obsidian/plugins/download-tracker/data.json` in your vault. That removes the settings, snapshots and stored history. The token stays in Obsidian's secret storage until you remove it there.
+
+## Report a bug or request a feature
+
+Open **Settings → Download Tracker** and scroll to the About panel at the bottom. **Report a bug** and **Request a feature** open a form on the plugin's GitHub page in your browser. The bug form asks where the problem happened, which message was shown, whether you use a token, and your plugin and Obsidian versions. Remove your GitHub token and any private repository names before posting.

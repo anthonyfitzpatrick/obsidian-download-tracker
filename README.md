@@ -142,4 +142,6 @@ Pushing a version tag starts the release workflow. It checks the tag against `ma
 
 ## Credits
 
-Created by Anthony Fitzpatrick at Wolf 359 Press. Released under the MIT licence.
+Created by Anthony Fitzpatrick at Wolf 359 Press AB. Released under the MIT licence.
+
+To report a bug or request a feature, use the links in the About panel at the bottom of the plugin's settings, or open an issue on GitHub. If the plugin is useful to you, you can [buy me a coffee](https://buymeacoffee.com/wolf359pressab).

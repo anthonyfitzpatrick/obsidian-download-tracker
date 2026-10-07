@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SecretComponent, Setting, moment } from 'obsidian';
+import { App, PluginSettingTab, SecretComponent, Setting, moment, setIcon } from 'obsidian';
 import type DownloadTrackerPlugin from './main';
 
 export interface DownloadTrackerSettings {
@@ -39,9 +39,27 @@ export const DEFAULT_SETTINGS: DownloadTrackerSettings = {
 	linkNames: true,
 };
 
-// A link is shown only when its URL is set.
-const COFFEE_URL = 'https://buymeacoffee.com/wolf359pressab';
-const BOOK_URL = '';
+const REPO = 'https://github.com/anthonyfitzpatrick/obsidian-download-tracker';
+
+// The About footer shared with the other Wolf 359 Press plugins.
+const ABOUT_LINKS: { icon?: string; cls?: string; label: string; url: string; primary?: boolean }[] = [
+	{
+		icon: 'bug',
+		label: 'Report a bug',
+		primary: true,
+		url: `${REPO}/issues/new?template=bug_report.yml&title=%5BBug+report%5D%3A+&labels=bug`,
+	},
+	{
+		icon: 'lightbulb',
+		label: 'Request a feature',
+		primary: true,
+		url: `${REPO}/issues/new?template=feature_request.yml&title=%5BFeature+request%5D%3A+&labels=enhancement`,
+	},
+	{ icon: 'user-round', label: 'Anthony Fitzpatrick', primary: true, url: 'https://anthonyfitzpatrick.me/' },
+	{ icon: 'globe', label: 'wolf359.app', url: 'https://wolf359.app/' },
+	{ icon: 'book-open', label: 'wolf359.press', url: 'https://wolf359.press/' },
+	{ cls: 'download-tracker-about-coffee', label: 'Buy me a coffee', url: 'https://buymeacoffee.com/wolf359pressab' },
+];
 
 export class DownloadTrackerSettingTab extends PluginSettingTab {
 	constructor(
@@ -262,15 +280,53 @@ export class DownloadTrackerSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		const footer = containerEl.createDiv({ cls: 'download-tracker-credit' });
-		footer.createSpan({ text: 'Created by Anthony Fitzpatrick at Wolf 359 Press.' });
-		if (COFFEE_URL) {
-			footer.createSpan({ text: ' ' });
-			footer.createEl('a', { text: 'Buy me a coffee', href: COFFEE_URL });
-		}
-		if (BOOK_URL) {
-			footer.createSpan({ text: ' ' });
-			footer.createEl('a', { text: 'My books', href: BOOK_URL });
+		this.about(containerEl);
+	}
+
+	private about(containerEl: HTMLElement): void {
+		const footer = containerEl.createDiv({ cls: 'download-tracker-about' });
+		const identity = footer.createDiv({ cls: 'download-tracker-about-identity' });
+		logo(identity);
+		const text = identity.createDiv();
+		text.createDiv({ text: 'Download Tracker', cls: 'download-tracker-about-title' });
+		text.createDiv({ text: `Version ${this.plugin.manifest.version}`, cls: 'download-tracker-about-detail' });
+		text.createDiv({ text: 'Created by Anthony Fitzpatrick', cls: 'download-tracker-about-detail' });
+		text.createDiv({ text: 'Wolf 359 Press AB', cls: 'download-tracker-about-detail' });
+
+		const links = footer.createDiv({ cls: 'download-tracker-about-links' });
+		const primary = links.createDiv({ cls: 'download-tracker-about-row' });
+		const secondary = links.createDiv({ cls: 'download-tracker-about-row' });
+		for (const link of ABOUT_LINKS) {
+			// Buttons, as in the other Wolf 359 Press plugins, so themes style them alike.
+			const el = (link.primary ? primary : secondary).createEl('button', {
+				cls: 'download-tracker-about-link' + (link.cls ? ` ${link.cls}` : ''),
+				attr: { type: 'button', 'aria-label': `${link.label}: ${link.url}` },
+			});
+			const icon = el.createSpan({ cls: 'download-tracker-about-icon', attr: { 'aria-hidden': 'true' } });
+			if (link.icon) setIcon(icon, link.icon);
+			el.createSpan({ text: link.label });
+			// Obsidian opens window.open targets in the default browser.
+			el.addEventListener('click', () => window.open(link.url, '_blank', 'noopener'));
 		}
 	}
+}
+
+// The plugin's mark, drawn in place: a community install ships no image files.
+function logo(parent: HTMLElement): void {
+	const box = parent.createDiv({ cls: 'download-tracker-about-logo', attr: { role: 'img', 'aria-label': 'Download Tracker logo' } });
+	const svg = box.createSvg('svg', { attr: { viewBox: '0 0 512 512', 'aria-hidden': 'true' } });
+	svg.createSvg('rect', { attr: { width: '512', height: '512', rx: '96', fill: '#FFFFFF' } });
+	const g = svg.createSvg('g', {
+		attr: {
+			transform: 'translate(112 112) scale(12)',
+			fill: 'none',
+			stroke: '#1F2937',
+			'stroke-width': '1.5',
+			'stroke-linecap': 'round',
+			'stroke-linejoin': 'round',
+		},
+	});
+	g.createSvg('path', { attr: { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', fill: '#EDE9FE' } });
+	g.createSvg('path', { attr: { d: 'M7 10l5 5 5-5', stroke: '#7C3AED' } });
+	g.createSvg('path', { attr: { d: 'M12 15V3', stroke: '#7C3AED' } });
 }

@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible problem with Download Tracker.
+title: "[Bug report]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please remove any GitHub token, private repository names or note content before posting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behaviour and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable sequence of steps.
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did it happen?
+      options: [Tables tab, Charts tab, Settings, A command, Snapshot or export, Not sure]
+    validations:
+      required: true
+  - type: input
+    id: message
+    attributes:
+      label: Message shown
+      description: Copy any message the dashboard or a notice showed. Do not paste your token.
+  - type: dropdown
+    id: token
+    attributes:
+      label: GitHub token
+      options: [No token, Classic token, Fine-grained token]
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Download Tracker version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      placeholder: e.g. 1.13.7
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux, iOS, Android]
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add screenshots or console errors, with tokens and private names removed.
