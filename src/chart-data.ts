@@ -95,39 +95,70 @@ export function projectSlots(rows: Row[], kind: KindFilter): Map<string, string>
 	return new Map(group.map((r, i) => [rowKey(r), i < coloured ? `is-slot-${i + 1}` : 'is-total']));
 }
 
-// One line per project. A release's downloads are added at its publish date,
-// so each line steps up at every release and ends today at the project's total.
-export function releaseSeries(rows: Row[], slots: Map<string, string>, now: number): Series[] {
-	const series: Series[] = [];
-	const others: Row[] = [];
-	for (const r of rows) {
-		if (!r.versions.some((v) => typeof v.published === 'number')) continue;
-		const cls = slots.get(rowKey(r)) ?? 'is-total';
-		if (cls === 'is-total') others.push(r);
-		else series.push({ id: rowKey(r), label: r.name, cls, points: cumulative([r], now) });
+export type Period = 'week' | 'month' | 'quarter';
+
+// Period boundaries from the earliest publication to now: weekly for up to four
+// months, monthly for up to two years, quarterly beyond. The last period ends now.
+export function periodEnds(first: number, now: number): { ends: number[]; period: Period } {
+	const days = (now - first) / 86_400_000;
+	const period: Period = days <= 120 ? 'week' : days <= 730 ? 'month' : 'quarter';
+	const ends: number[] = [];
+	const start = new Date(first);
+	if (period === 'week') {
+		const base = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+		for (let t = base + 7 * 86_400_000; t < now; t += 7 * 86_400_000) ends.push(t);
+	} else {
+		const step = period === 'month' ? 1 : 3;
+		const firstMonth = period === 'month' ? start.getMonth() : start.getMonth() - (start.getMonth() % 3);
+		for (let m = firstMonth + step; ; m += step) {
+			const t = new Date(start.getFullYear(), m, 1).getTime();
+			if (t >= now) break;
+			ends.push(t);
+		}
 	}
-	if (others.length > 0) {
-		series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: cumulative(others, now) });
-	}
-	return series;
+	ends.push(now);
+	return { ends, period };
 }
 
-function cumulative(rows: Row[], now: number): Point[] {
-	const releases = rows
-		.flatMap((r) => r.versions)
-		.filter((v): v is VersionCount & { published: number } => typeof v.published === 'number')
-		.sort((a, b) => a.published - b.published);
-	const points: Point[] = [];
-	let total = 0;
-	for (const v of releases) {
-		total += v.downloads;
-		const last = points[points.length - 1];
-		if (last && last.time === v.published) last.value = total;
-		else points.push({ time: v.published, value: total });
+export interface PeriodLines {
+	ends: number[];
+	period: Period;
+	series: Series[];
+}
+
+// One line per project with a point at the end of every period: the running total of
+// downloads of the releases published by then. A release's downloads are placed at
+// its publish date. A line starts at the first period containing the project's first
+// release, and the last point, today, is the project's total.
+export function periodSeries(rows: Row[], slots: Map<string, string>, now: number): PeriodLines | null {
+	const dated = (r: Row) => r.versions.filter((v): v is VersionCount & { published: number } => typeof v.published === 'number');
+	const projects = rows.filter((r) => dated(r).length > 0);
+	if (projects.length === 0) return null;
+	const { ends, period } = periodEnds(Math.min(...projects.flatMap((r) => dated(r).map((v) => v.published))), now);
+	const last = ends.length - 1;
+	const line = (group: Row[]): Point[] => {
+		const releases = group.flatMap(dated);
+		const firstRelease = Math.min(...releases.map((v) => v.published));
+		const points: Point[] = [];
+		ends.forEach((end, i) => {
+			const isOpen = i === last ? firstRelease > end : firstRelease >= end;
+			if (isOpen) return;
+			const value = releases
+				.filter((v) => (i === last ? v.published <= end : v.published < end))
+				.reduce((sum, v) => sum + v.downloads, 0);
+			points.push({ time: end, value });
+		});
+		return points;
+	};
+	const series: Series[] = [];
+	const others: Row[] = [];
+	for (const r of projects) {
+		const cls = slots.get(rowKey(r)) ?? 'is-total';
+		if (cls === 'is-total') others.push(r);
+		else series.push({ id: rowKey(r), label: r.name, cls, points: line([r]) });
 	}
-	const last = points[points.length - 1];
-	if (last && last.time < now) points.push({ time: now, value: total });
-	return points;
+	if (others.length > 0) series.push({ id: 'other', label: `Other (${others.length})`, cls: 'is-total', points: line(others) });
+	return { ends, period, series };
 }
 
 // Round tick steps (1, 2 or 5 times a power of ten) so axis labels read cleanly.

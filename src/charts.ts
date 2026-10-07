@@ -1,12 +1,13 @@
-import { setTooltip } from 'obsidian';
+import { moment, setTooltip } from 'obsidian';
 import {
 	ChartFilter,
 	Current,
 	KindFilter,
 	Series,
 	historySeries,
+	Period,
+	periodSeries,
 	projectSlots,
-	releaseSeries,
 	kindMatches,
 	nameMatches,
 	niceTicks,
@@ -107,11 +108,11 @@ function drawCharts(
 	const projects = card(
 		parent,
 		'Downloads by project',
-		'One line per project, cumulative from the earliest publication to today. Each release’s downloads are added on the date it was published, so a line steps up at every release; it shows downloads of the releases out by then, not downloads made by then. Hover over a name in the legend to pick out its line, or over a date to see every value.',
+		'One line per project, with a point at the end of each period from the earliest publication to today. Each point is the running total of downloads of the releases published by then; a release’s downloads are counted on the date it was published, not when people downloaded it. Hover over a name in the legend to pick out its line, or over a period to see every value.',
 	);
-	const perProject = releaseSeries(rows, projectSlots(all, filter.kind), current.time);
-	if (perProject.length === 0) empty(projects, 'None of these projects has dated releases with downloads.');
-	else lines(projects, perProject, date, true);
+	const perProject = periodSeries(rows, projectSlots(all, filter.kind), current.time);
+	if (!perProject) empty(projects, 'None of these projects has dated releases with downloads.');
+	else lines(projects, perProject.series, date, perProject);
 	if (rows.some((r) => r.kind === 'theme')) {
 		projects.createEl('p', {
 			text: 'Themes aren’t in this chart: Obsidian publishes one total per theme, not a count per release.',
@@ -233,22 +234,42 @@ function versionColumns(parent: HTMLElement, row: Row): void {
 	axis.createSpan({ text: versions[versions.length - 1]?.version ?? '' });
 }
 
-// With steps, a value holds until the next point, as a running total of releases does.
-function lines(parent: HTMLElement, series: Series[], date: DateFormatter, steps = false): void {
-	const times = [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b);
+interface PeriodAxis {
+	ends: number[];
+	period: Period;
+}
+
+// Without periods, x is proportional to time. With periods, the points are evenly
+// spaced, one per period, and every period is labelled where there is room.
+function lines(parent: HTMLElement, series: Series[], date: DateFormatter, periods?: PeriodAxis): void {
+	const times = periods ?? { ends: [...new Set(series.flatMap((s) => s.points.map((p) => p.time)))].sort((a, b) => a - b) };
+	const all = times.ends;
 	const values = series.flatMap((s) => s.points.map((p) => p.value));
-	const ticks = niceTicks(Math.min(...values), Math.max(...values));
+	const ticks = niceTicks(Math.min(0, ...values), Math.max(...values));
 	const low = ticks[0] ?? 0;
 	const high = ticks[ticks.length - 1] ?? 1;
-	const first = times[0] ?? 0;
-	const span = Math.max((times[times.length - 1] ?? 1) - first, 1);
-	const x = (t: number) => ((t - first) / span) * 100;
+	const first = all[0] ?? 0;
+	const lastTime = all[all.length - 1] ?? first;
+	const span = Math.max(lastTime - first, 1);
+	const index = new Map(all.map((t, i) => [t, i]));
+	const x = periods
+		? (t: number) => 3 + ((index.get(t) ?? 0) / Math.max(all.length - 1, 1)) * 94
+		: (t: number) => ((t - first) / span) * 100;
 	const y = (v: number) => 100 - ((v - low) / (high - low || 1)) * 100;
+	// A period's end is the start of the next one, so it is named by its last day or month.
+	const pointLabel = (t: number, i: number) => {
+		if (!periods) return date(t, true);
+		if (i === all.length - 1) return 'Today';
+		return periods.period === 'week' ? date(t - 1) : moment(t - 1).format('MMM YYYY');
+	};
+	// Axis labels are short so several fit; tooltips carry the full date.
+	const axisLabel = (t: number, i: number) => {
+		if (i === all.length - 1) return 'Today';
+		return moment(t - 1).format(periods?.period === 'week' ? 'D MMM' : 'MMM YY');
+	};
 
 	const frame = parent.createDiv({ cls: 'download-tracker-line' });
 	const marks = new Map<string, Element[]>();
-	if (series.length > 1) legend(parent, series, 'line', frame, marks);
-	parent.appendChild(frame);
 	const yAxis = frame.createDiv({ cls: 'download-tracker-line-y' });
 	const plot = frame.createDiv({ cls: 'download-tracker-line-plot' });
 	for (const tick of ticks) {
@@ -262,16 +283,14 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, steps
 	});
 	for (const s of series) {
 		const own: Element[] = [];
-		const coords = s.points.flatMap((p, i) => {
-			const prev = s.points[i - 1];
-			const point = `${x(p.time)},${y(p.value)}`;
-			return steps && prev ? [`${x(p.time)},${y(prev.value)}`, point] : [point];
-		});
+		const coords = s.points.map((p) => `${x(p.time)},${y(p.value)}`);
 		// A wash under one line helps; under several lines the washes stack into noise.
-		if (series.length === 1) {
+		if (series.length === 1 && s.points.length > 0) {
+			const left = x(s.points[0]?.time ?? first);
+			const right = x(s.points[s.points.length - 1]?.time ?? lastTime);
 			own.push(
 				svg.createSvg('polygon', {
-					attr: { points: `0,100 ${coords.join(' ')} 100,100` },
+					attr: { points: `${left},100 ${coords.join(' ')} ${right},100` },
 					cls: ['download-tracker-line-area', s.cls],
 				}),
 			);
@@ -287,39 +306,50 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, steps
 	}
 
 	// One hit column per date, so the pointer only has to find the date, not a line.
-	for (const t of times) {
+	all.forEach((t, i) => {
 		const hit = plot.createDiv({ cls: 'download-tracker-line-hit' });
 		hit.style.left = `${x(t)}%`;
 		const parts = series
-			.map((s) => ({
-				label: s.label,
-				value: steps
-					? [...s.points].reverse().find((p) => p.time <= t)?.value
-					: s.points.find((p) => p.time === t)?.value,
-			}))
+			.map((s) => ({ label: s.label, value: s.points.find((p) => p.time === t)?.value }))
 			.filter((p): p is { label: string; value: number } => p.value !== undefined)
 			.sort((a, b) => b.value - a.value)
 			.map((p) => `${p.label} ${formatCount(p.value)}`);
-		focusable(hit, `${date(t, true)}: ${parts.join(', ')}`);
-	}
+		focusable(hit, `${pointLabel(t, i)}: ${parts.join(', ')}`);
+	});
 
 	// End values only where they don't collide; the legend and tooltip carry the rest.
-	const ends = frame.createDiv({ cls: 'download-tracker-line-ends' });
+	const endLabels = frame.createDiv({ cls: 'download-tracker-line-ends' });
 	const placed: number[] = [];
 	const lasts = series
 		.map((s) => s.points[s.points.length - 1])
-		.filter((p): p is { time: number; value: number } => p !== undefined)
+		.filter((p): p is { time: number; value: number } => p !== undefined && p.time === lastTime)
 		.sort((a, b) => b.value - a.value);
 	for (const last of lasts) {
 		const top = y(last.value);
 		if (placed.some((p) => Math.abs(p - top) < 9)) continue;
 		placed.push(top);
-		ends.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${top}%`;
+		endLabels.createSpan({ text: formatCount(last.value), cls: 'download-tracker-line-end' }).style.top = `${top}%`;
 	}
 
-	const last = times[times.length - 1] ?? first;
-	const sameDay = date(first) === date(last);
-	const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
-	xAxis.createSpan({ text: date(first, sameDay) });
-	xAxis.createSpan({ text: date(last, sameDay) });
+	if (periods) {
+		// Label every period that fits: up to ten on a wide pane, three on a narrow one.
+		const xAxis = frame.createDiv({ cls: 'download-tracker-line-x is-periods' });
+		const wide = Math.ceil(all.length / 10);
+		const narrow = Math.ceil(all.length / 3);
+		all.forEach((t, i) => {
+			const lastOne = i === all.length - 1;
+			const showWide = lastOne || (i % wide === 0 && all.length - 1 - i >= wide / 2);
+			if (!showWide) return;
+			const showNarrow = lastOne || (i % narrow === 0 && all.length - 1 - i >= narrow / 2);
+			const label = xAxis.createSpan({ text: axisLabel(t, i), cls: showNarrow ? '' : 'is-wide-only' });
+			label.style.left = `${x(t)}%`;
+		});
+	} else {
+		const sameDay = date(first) === date(lastTime);
+		const xAxis = frame.createDiv({ cls: 'download-tracker-line-x' });
+		xAxis.createSpan({ text: date(first, sameDay) });
+		xAxis.createSpan({ text: date(lastTime, sameDay) });
+	}
+
+	if (series.length > 1) legend(parent, series, 'box', frame, marks);
 }

@@ -686,3 +686,29 @@
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 }
+
+/* Period labels sit under their points; on a narrow pane only every few are kept. */
+.download-tracker-line-x.is-periods {
+	position: relative;
+	display: block;
+	height: 1.4em;
+}
+
+.download-tracker-line-x.is-periods span {
+	position: absolute;
+	top: 2px;
+	transform: translateX(-50%);
+	white-space: nowrap;
+}
+
+/* Legend below the chart, as chips. */
+.download-tracker-line + .download-tracker-legend {
+	justify-content: center;
+	margin-top: var(--size-4-3);
+}
+
+@container (max-width: 30rem) {
+	.download-tracker-line-x.is-periods .is-wide-only {
+		display: none;
+	}
+}
