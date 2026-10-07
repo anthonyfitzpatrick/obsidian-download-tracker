@@ -308,3 +308,7 @@ Close Obsidian and delete `.obsidian/plugins/download-tracker/data.json` in your
 ## Report a bug or request a feature
 
 Open **Settings → Download Tracker** and scroll to the About panel at the bottom. **Report a bug** and **Request a feature** open a form on the plugin's GitHub page in your browser. The bug form asks where the problem happened, which message was shown, whether you use a token, and your plugin and Obsidian versions. Remove your GitHub token and any private repository names before posting.
+
+## About the author
+
+Download Tracker is made by [Anthony Fitzpatrick](https://anthonyfitzpatrick.me) at Wolf 359 Press AB. More from Wolf 359 Press is at [wolf359.press](https://wolf359.press) and [wolf359.app](https://wolf359.app). If the plugin is useful to you, you can [buy me a coffee](https://buymeacoffee.com/wolf359pressab).
