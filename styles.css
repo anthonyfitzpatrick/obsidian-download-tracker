@@ -139,26 +139,30 @@
 	--dt-total: var(--text-muted);
 }
 
+/* One colour per project, chosen so every pair is distinct on its surface (OKLab
+   difference 16.1 or more on white, 14.0 or more on black and #1e1e1e) with 3:1 contrast.
+   Eight colours can't all stay apart for colour-blind readers, so each slot also
+   has its own dot shape. */
 .download-tracker {
-	--dt-slot-1: #2a78d6;
+	--dt-slot-1: #5c7cfa;
 	--dt-slot-2: #eb6834;
-	--dt-slot-3: #1baf7a;
-	--dt-slot-4: #eda100;
-	--dt-slot-5: #e87ba4;
-	--dt-slot-6: #008300;
+	--dt-slot-3: #1098ad;
+	--dt-slot-4: #a61e4d;
+	--dt-slot-5: #008300;
+	--dt-slot-6: #ae3ec9;
 	--dt-slot-7: #4a3aa7;
-	--dt-slot-8: #e34948;
+	--dt-slot-8: #8f6400;
 }
 
 .theme-dark .download-tracker {
 	--dt-slot-1: #3987e5;
-	--dt-slot-2: #d95926;
-	--dt-slot-3: #199e70;
-	--dt-slot-4: #c98500;
-	--dt-slot-5: #d55181;
-	--dt-slot-6: #008300;
-	--dt-slot-7: #9085e9;
-	--dt-slot-8: #e66767;
+	--dt-slot-2: #c98500;
+	--dt-slot-3: #1baf7a;
+	--dt-slot-4: #d6336c;
+	--dt-slot-5: #008300;
+	--dt-slot-6: #b06cd6;
+	--dt-slot-7: #7048e8;
+	--dt-slot-8: #8f6400;
 }
 
 .theme-dark .download-tracker {
@@ -539,9 +543,9 @@
 	stroke-dasharray: 4 4;
 }
 
+/* Faded rather than hollow, so an estimated point keeps its project's colour and shape. */
 .download-tracker-line-dot.is-estimated {
-	background-color: var(--background-primary);
-	box-shadow: 0 0 0 2px var(--background-primary), inset 0 0 0 2px var(--text-muted);
+	opacity: 0.45;
 }
 
 .download-tracker-estimate-key {
@@ -608,3 +612,52 @@
 .download-tracker-line.has-highlight .download-tracker-marker.is-highlighted {
 	opacity: 1;
 }
+
+/* A shape per slot, on the line dots and the legend swatches, so no two projects look alike. */
+.download-tracker-line-dot[class*='is-slot-'],
+.download-tracker-swatch[class*='is-slot-'] {
+	width: 10px;
+	height: 10px;
+	border-radius: 0;
+}
+
+.download-tracker-line-dot.is-slot-1,
+.download-tracker-swatch.is-slot-1 {
+	border-radius: 50%;
+}
+
+.download-tracker-line-dot.is-slot-2,
+.download-tracker-swatch.is-slot-2 {
+	border-radius: 1px;
+}
+
+.download-tracker-line-dot.is-slot-3,
+.download-tracker-swatch.is-slot-3 {
+	clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.download-tracker-line-dot.is-slot-4,
+.download-tracker-swatch.is-slot-4 {
+	clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.download-tracker-line-dot.is-slot-5,
+.download-tracker-swatch.is-slot-5 {
+	clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.download-tracker-line-dot.is-slot-6,
+.download-tracker-swatch.is-slot-6 {
+	clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%);
+}
+
+.download-tracker-line-dot.is-slot-7,
+.download-tracker-swatch.is-slot-7 {
+	clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
+.download-tracker-line-dot.is-slot-8,
+.download-tracker-swatch.is-slot-8 {
+	clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
+}
+
