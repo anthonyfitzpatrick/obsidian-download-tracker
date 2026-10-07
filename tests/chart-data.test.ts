@@ -98,19 +98,29 @@ describe('periodTotals', () => {
 	};
 	const saved: Snapshot[] = [{ fetchedAt: day(25), counts: { 'theme:t': 6 }, names: {} }];
 
-	it('adds a theme as zero before its release and leaves out periods it can’t vouch for', () => {
+	it('counts a theme as zero before its release and estimates it until its first record', () => {
 		const series = periodTotals([plugin, theme], 'all', ends, figures, []);
-		expect(series.map((s) => [s.id, s.points.map((p) => [p.time, p.value])])).toEqual([
-			['total', [[day(12), 10], [day(30), 49]]],
-			['plugin', [[day(12), 10], [day(19), 20], [day(26), 30], [day(30), 40]]],
-			['theme', [[day(30), 9]]],
+		// Released on the 15th, first record is today's 9 on the 30th: 4/15 and 11/15 of the way.
+		expect(series.map((s) => [s.id, s.points.map((p) => [p.value, p.estimated ?? false])])).toEqual([
+			['total', [[10, false], [22, true], [37, true], [49, false]]],
+			['plugin', [[10, false], [20, false], [30, false], [40, false]]],
+			['theme', [[2, true], [7, true], [9, false]]],
 		]);
 	});
 
-	it('fills theme periods from snapshots', () => {
+	it('uses snapshots where there are any and estimates only before the first', () => {
 		const series = periodTotals([plugin, theme], 'all', ends, figures, saved);
-		expect(series[0]?.points.map((p) => p.value)).toEqual([10, 36, 49]);
-		expect(series[2]?.points.map((p) => p.value)).toEqual([6, 9]);
+		// 4/10 of the way from release (15th) to the snapshot of 6 (25th).
+		expect(series[2]?.points.map((p) => [p.value, p.estimated ?? false])).toEqual([
+			[2, true],
+			[6, false],
+			[9, false],
+		]);
+	});
+
+	it('never estimates a plugin whose figures are not loaded', () => {
+		const series = periodTotals([plugin], 'plugin', ends, {}, []);
+		expect(series[0]?.points.map((p) => p.value)).toEqual([40]);
 	});
 
 	it('draws one line for a single type', () => {

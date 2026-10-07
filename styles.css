@@ -533,3 +533,23 @@
 		display: none;
 	}
 }
+
+/* Estimates: dashed lines and hollow dots, so they never pass for recorded numbers. */
+.download-tracker-line-stroke.is-estimated {
+	stroke-dasharray: 4 4;
+}
+
+.download-tracker-line-dot.is-estimated {
+	background-color: var(--background-primary);
+	box-shadow: 0 0 0 2px var(--background-primary), inset 0 0 0 2px var(--text-muted);
+}
+
+.download-tracker-estimate-key {
+	justify-content: center;
+	margin-top: var(--size-4-1);
+}
+
+.download-tracker-dash-key {
+	width: 16px;
+	border-top: 2px dashed var(--text-muted);
+}

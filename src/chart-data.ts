@@ -3,6 +3,7 @@ import { Kind, Row, Snapshot, rowKey } from './counts';
 export interface Point {
 	time: number;
 	value: number;
+	estimated?: boolean;
 }
 
 export type KindFilter = 'all' | Kind;
@@ -100,23 +101,42 @@ export function missingFigures(ends: number[], ids: string[], cache: FiguresCach
 interface Known {
 	value: number;
 	started: boolean;
+	estimated: boolean;
 }
 
-function knownAt(r: Row, end: number, isLast: boolean, figures: FiguresCache, ordered: Snapshot[]): Known | null {
-	if (isLast) return r.downloads === null ? null : { value: r.downloads, started: true };
+function knownAt(
+	r: Row,
+	end: number,
+	now: number,
+	isLast: boolean,
+	figures: FiguresCache,
+	ordered: Snapshot[],
+): Known | null {
+	if (isLast) return r.downloads === null ? null : { value: r.downloads, started: true, estimated: false };
 	const first = earliestRelease([r]);
-	if (first !== null && end <= first) return { value: 0, started: false };
+	if (first !== null && end <= first) return { value: 0, started: false, estimated: false };
 	if (r.kind === 'plugin') {
 		const entry = figures[String(end)];
 		if (entry?.ids.includes(r.id)) {
 			const n = entry.counts[r.id];
 			// Missing from the file means not yet in Obsidian's directory.
-			return n === undefined ? { value: 0, started: false } : { value: n, started: true };
+			return n === undefined ? { value: 0, started: false, estimated: false } : { value: n, started: true, estimated: false };
 		}
+		// Not loaded yet: wait for the real figure rather than estimate.
+		return null;
 	}
-	const saved = ordered.filter((s) => s.fetchedAt <= end && s.counts[rowKey(r)] !== undefined).pop();
-	const value = saved?.counts[rowKey(r)];
-	return value === undefined ? null : { value, started: true };
+	const key = rowKey(r);
+	const saved = ordered.filter((s) => s.fetchedAt <= end && s.counts[key] !== undefined).pop();
+	const value = saved?.counts[key];
+	if (value !== undefined) return { value, started: true, estimated: false };
+	// No record for themes and other repositories before the first snapshot: estimate a
+	// straight rise from zero at the first release to the first recorded value.
+	if (first === null) return null;
+	const next = ordered.find((s) => s.fetchedAt > end && s.counts[key] !== undefined);
+	const target = next ? { time: next.fetchedAt, value: next.counts[key] ?? 0 } : { time: now, value: r.downloads ?? 0 };
+	if (target.time <= first) return null;
+	const share = (end - first) / (target.time - first);
+	return { value: Math.round(target.value * share), started: true, estimated: true };
 }
 
 // A point only where every project in the group is known, so a sum never leaves
@@ -124,10 +144,13 @@ function knownAt(r: Row, end: number, isLast: boolean, figures: FiguresCache, or
 function groupLine(group: Row[], ends: number[], figures: FiguresCache, snapshots: Snapshot[]): Point[] {
 	const ordered = [...snapshots].sort((a, b) => a.fetchedAt - b.fetchedAt);
 	const points: Point[] = [];
+	const now = ends[ends.length - 1] ?? 0;
 	ends.forEach((end, i) => {
-		const known = group.map((r) => knownAt(r, end, i === ends.length - 1, figures, ordered));
+		const known = group.map((r) => knownAt(r, end, now, i === ends.length - 1, figures, ordered));
 		if (known.some((k) => k === null) || !known.some((k) => k?.started)) return;
-		points.push({ time: end, value: known.reduce((sum, k) => sum + (k?.value ?? 0), 0) });
+		const point: Point = { time: end, value: known.reduce((sum, k) => sum + (k?.value ?? 0), 0) };
+		if (known.some((k) => k?.estimated)) point.estimated = true;
+		points.push(point);
 	});
 	return points;
 }

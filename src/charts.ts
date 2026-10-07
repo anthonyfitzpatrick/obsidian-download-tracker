@@ -127,7 +127,7 @@ function drawCharts(
 		group.filter((r) => r.kind === 'plugin').map((r) => r.id),
 	);
 	const sources =
-		'Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, today’s live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots. Where a total isn’t known, the line breaks.';
+		'Plugin points are Obsidian’s published daily figures, which run a few days behind, so a line can rise at the last point, today’s live count from the tables. Themes and other repositories have no published history, so their points come from your saved snapshots; before the first one, they are estimated as a straight rise from zero at release and drawn dashed.';
 
 	const projects = card(
 		parent,
@@ -150,7 +150,7 @@ function drawCharts(
 
 	if (rows.some((r) => r.kind !== 'plugin')) {
 		parent.createEl('p', {
-			text: 'Themes and other repositories have no published history, so their lines start at your first saved snapshot. The daily snapshot setting builds it up.',
+			text: 'Themes and other repositories have no published history, so their lines are estimated (dashed) until your first saved snapshot. The daily snapshot setting records them from now on.',
 			cls: 'download-tracker-chart-note',
 		});
 	}
@@ -253,7 +253,9 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		attr: { viewBox: '0 0 100 100', preserveAspectRatio: 'none', 'aria-hidden': 'true' },
 		cls: 'download-tracker-line-svg',
 	});
-	for (const s of series) {
+	// The combined total is drawn last, so it stays visible where it runs along a part.
+	const drawOrder = [...series].sort((a, b) => Number(a.id === 'total') - Number(b.id === 'total'));
+	for (const s of drawOrder) {
 		const own: Element[] = [];
 		// A line breaks where periods are missing, rather than bridging a gap it can't vouch for.
 		const segments: Point[][] = [];
@@ -277,10 +279,33 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 					}),
 				);
 			}
-			own.push(svg.createSvg('polyline', { attr: { points: coords.join(' ') }, cls: ['download-tracker-line-stroke', s.cls] }));
+			// Dashed wherever either end of a step is an estimate.
+			let run: Point[] = [];
+			let dashed = false;
+			const flush = () => {
+				if (run.length < 2) return;
+				const cls = ['download-tracker-line-stroke', s.cls];
+				if (dashed) cls.push('is-estimated');
+				own.push(svg.createSvg('polyline', { attr: { points: run.map((p) => `${x(p.time)},${y(p.value)}`).join(' ') }, cls }));
+			};
+			segment.forEach((p, i) => {
+				const prev = segment[i - 1];
+				if (!prev) {
+					run = [p];
+					return;
+				}
+				const stepDashed = Boolean(prev.estimated || p.estimated);
+				if (run.length > 1 && stepDashed !== dashed) {
+					flush();
+					run = [prev];
+				}
+				dashed = stepDashed;
+				run.push(p);
+			});
+			flush();
 		}
 		for (const p of s.points) {
-			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}` });
+			const dot = plot.createDiv({ cls: `download-tracker-line-dot ${s.cls}${p.estimated ? ' is-estimated' : ''}` });
 			dot.style.left = `${x(p.time)}%`;
 			dot.style.top = `${y(p.value)}%`;
 			own.push(dot);
@@ -293,10 +318,10 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 		const hit = plot.createDiv({ cls: 'download-tracker-line-hit' });
 		hit.style.left = `${x(t)}%`;
 		const parts = series
-			.map((s) => ({ label: s.label, value: s.points.find((p) => p.time === t)?.value }))
-			.filter((p): p is { label: string; value: number } => p.value !== undefined)
-			.sort((a, b) => b.value - a.value)
-			.map((p) => `${p.label} ${formatCount(p.value)}`);
+			.map((s) => ({ label: s.label, point: s.points.find((p) => p.time === t) }))
+			.filter((p): p is { label: string; point: Point } => p.point !== undefined)
+			.sort((a, b) => b.point.value - a.point.value)
+			.map((p) => `${p.label} ${formatCount(p.point.value)}${p.point.estimated ? ' (estimated)' : ''}`);
 		focusable(hit, `${pointLabel(t, i)}: ${parts.join(', ')}`);
 	});
 
@@ -335,4 +360,10 @@ function lines(parent: HTMLElement, series: Series[], date: DateFormatter, perio
 	}
 
 	if (series.length > 1) legend(parent, series, 'box', frame, marks);
+	if (series.some((s) => s.points.some((p) => p.estimated))) {
+		const key = parent.createDiv({ cls: 'download-tracker-legend download-tracker-estimate-key' });
+		const item = key.createSpan({ cls: 'download-tracker-legend-item' });
+		item.createSpan({ cls: 'download-tracker-dash-key' });
+		item.createSpan({ text: 'Estimated: no record exists for these weeks' });
+	}
 }
